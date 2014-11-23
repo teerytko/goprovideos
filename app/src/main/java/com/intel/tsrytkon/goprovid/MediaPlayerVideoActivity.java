@@ -8,9 +8,12 @@ import android.media.AudioManager;
 import android.media.MediaPlayer;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Handler;
 import android.util.Log;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
+import android.widget.MediaController;
+import android.view.MotionEvent;
 
 import com.intel.tsrytkon.goprovid.R;
 
@@ -18,7 +21,7 @@ import java.net.URLEncoder;
 
 public class MediaPlayerVideoActivity extends Activity implements
         MediaPlayer.OnBufferingUpdateListener, MediaPlayer.OnCompletionListener, MediaPlayer.OnPreparedListener,
-        MediaPlayer.OnVideoSizeChangedListener, SurfaceHolder.Callback {
+        MediaPlayer.OnVideoSizeChangedListener, SurfaceHolder.Callback, MediaController.MediaPlayerControl {
 
     private static final String TAG = "MediaPlayerDemo";
     private int mVideoWidth;
@@ -26,6 +29,8 @@ public class MediaPlayerVideoActivity extends Activity implements
     private MediaPlayer mMediaPlayer;
     private SurfaceView mPreview;
     private SurfaceHolder holder;
+    private MediaController mcontroller;
+    private Handler handler = new Handler();
     private String path;
     private Bundle extras;
     private static final String MEDIA = "media";
@@ -52,6 +57,16 @@ public class MediaPlayerVideoActivity extends Activity implements
         extras = getIntent().getExtras();
     }
 
+    @Override
+    public boolean onTouchEvent(MotionEvent event) {
+        /*
+         * the MediaController will hide after 3 seconds - tap the screen to
+         * make it appear again
+         */
+        mcontroller.show();
+        return false;
+    }
+
     private void playVideo(String path) {
         doCleanUp();
         try {
@@ -66,6 +81,7 @@ public class MediaPlayerVideoActivity extends Activity implements
                 mMediaPlayer.setOnVideoSizeChangedListener(this);
                 mMediaPlayer.setAudioStreamType(AudioManager.STREAM_MUSIC);
                 mMediaPlayer.setDisplay(holder);
+                mcontroller = new MediaController(this);
             }
 
         } catch (Exception e) {
@@ -103,6 +119,14 @@ public class MediaPlayerVideoActivity extends Activity implements
         if (mIsVideoReadyToBePlayed && mIsVideoSizeKnown) {
             startVideoPlayback();
         }
+        mcontroller.setMediaPlayer(this);
+        mcontroller.setAnchorView(findViewById(R.id.surfaceView));
+        handler.post(new Runnable() {
+            public void run() {
+                mcontroller.setEnabled(true);
+                mcontroller.show();
+            }
+        });
     }
 
     public void surfaceChanged(SurfaceHolder surfaceholder, int i, int j, int k) {
@@ -151,5 +175,50 @@ public class MediaPlayerVideoActivity extends Activity implements
         Log.v(TAG, "startVideoPlayback");
         holder.setFixedSize(mVideoWidth, mVideoHeight);
         mMediaPlayer.start();
+    }
+
+    //mediacontroller implemented methods
+    public void start() {
+        mMediaPlayer.start();
+    }
+
+    public void pause() {
+        mMediaPlayer.pause();
+    }
+
+    public int getDuration() {
+        return mMediaPlayer.getDuration();
+    }
+
+    public int getCurrentPosition() {
+        return mMediaPlayer.getCurrentPosition();
+    }
+
+    public void seekTo(int i) {
+        mMediaPlayer.seekTo(i);
+    }
+
+    public boolean isPlaying() {
+        return mMediaPlayer.isPlaying();
+    }
+
+    public int getBufferPercentage() {
+        return mMediaPlayer.getAudioSessionId();
+    }
+
+    public boolean canPause() {
+        return true;
+    }
+
+    public boolean canSeekBackward() {
+        return true;
+    }
+
+    public boolean canSeekForward() {
+        return true;
+    }
+
+    public int getAudioSessionId() {
+        return 0;
     }
 }
