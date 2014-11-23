@@ -12,6 +12,7 @@ import android.os.Handler;
 import android.util.Log;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
+import android.view.View;
 import android.widget.MediaController;
 import android.view.MotionEvent;
 
@@ -49,8 +50,8 @@ public class MediaPlayerVideoActivity extends Activity implements
     @Override
     public void onCreate(Bundle icicle) {
         super.onCreate(icicle);
-        setContentView(R.layout.activity_go_pro);
-        mPreview = (SurfaceView) findViewById(R.id.surfaceView);
+        setContentView(R.layout.activity_video_playback_full);
+        mPreview = (SurfaceView) findViewById(R.id.fullscreen_content);
         holder = mPreview.getHolder();
         holder.addCallback(this);
         //holder.setType(SurfaceHolder.SURFACE_TYPE_PUSH_BUFFERS);
@@ -120,7 +121,7 @@ public class MediaPlayerVideoActivity extends Activity implements
             startVideoPlayback();
         }
         mcontroller.setMediaPlayer(this);
-        mcontroller.setAnchorView(findViewById(R.id.surfaceView));
+        mcontroller.setAnchorView(findViewById(R.id.fullscreen_content));
         handler.post(new Runnable() {
             public void run() {
                 mcontroller.setEnabled(true);
