@@ -5,6 +5,9 @@
     <string name="hello_world">Hello world!</string>
     <string name="action_settings">Settings</string>
     <string name="action_play">Play</string>
+    <string name="action_play_file">Play Local file</string>
+    <string name="action_play_live">Play Live stream</string>
+    <string name="action_connect">Connect</string>
     <string name="title_activity_play_back">PlayBackActivity</string>
     <string name="title_activity_video_playback_full">VideoPlaybackFull</string>
     <string name="dummy_button">Dummy Button</string>

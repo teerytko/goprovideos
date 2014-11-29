@@ -16,13 +16,14 @@ import android.view.View;
 import android.widget.MediaController;
 import android.view.MotionEvent;
 
+import com.intel.tsrytkon.goprovid.CustomMediaController;
 import com.intel.tsrytkon.goprovid.R;
 
 import java.net.URLEncoder;
 
 public class MediaPlayerVideoActivity extends Activity implements
         MediaPlayer.OnBufferingUpdateListener, MediaPlayer.OnCompletionListener, MediaPlayer.OnPreparedListener,
-        MediaPlayer.OnVideoSizeChangedListener, SurfaceHolder.Callback, MediaController.MediaPlayerControl {
+        MediaPlayer.OnVideoSizeChangedListener, SurfaceHolder.Callback, CustomMediaController.MediaPlayerControl {
 
     private static final String TAG = "MediaPlayerDemo";
     private int mVideoWidth;
@@ -30,7 +31,7 @@ public class MediaPlayerVideoActivity extends Activity implements
     private MediaPlayer mMediaPlayer;
     private SurfaceView mPreview;
     private SurfaceHolder holder;
-    private MediaController mcontroller;
+    private CustomMediaController mcontroller;
     private Handler handler = new Handler();
     private String path;
     private Bundle extras;
@@ -82,7 +83,7 @@ public class MediaPlayerVideoActivity extends Activity implements
                 mMediaPlayer.setOnVideoSizeChangedListener(this);
                 mMediaPlayer.setAudioStreamType(AudioManager.STREAM_MUSIC);
                 mMediaPlayer.setDisplay(holder);
-                mcontroller = new MediaController(this);
+                mcontroller = new CustomMediaController(this);
             }
 
         } catch (Exception e) {
@@ -188,6 +189,7 @@ public class MediaPlayerVideoActivity extends Activity implements
     }
 
     public int getDuration() {
+        System.out.println("getDuration "+mMediaPlayer.getDuration());
         return mMediaPlayer.getDuration();
     }
 
@@ -196,6 +198,7 @@ public class MediaPlayerVideoActivity extends Activity implements
     }
 
     public void seekTo(int i) {
+        System.out.println("seekTo "+i);
         mMediaPlayer.seekTo(i);
     }
 

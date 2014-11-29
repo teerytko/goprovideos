@@ -2,7 +2,20 @@
     xmlns:tools="http://schemas.android.com/tools"
     tools:context=".GoProActivity" >
     <item android:id="@+id/action_play"
-        android:title="@string/action_play"
+        android:title="@string/action_play">
+        <menu>
+            <item android:id="@+id/action_play_file"
+                android:title="@string/action_play_file"
+                android:orderInCategory="100"
+                android:showAsAction="never"/>
+            <item android:id="@+id/action_play_live"
+                android:title="@string/action_play_live"
+                android:orderInCategory="100"
+                android:showAsAction="never"/>
+        </menu>
+    </item>
+    <item android:id="@+id/action_connect"
+        android:title="@string/action_connect"
         android:orderInCategory="100"
         android:showAsAction="never" />
     <item android:id="@+id/action_settings"
