@@ -1,3 +1,9 @@
+/**
+ * main activity
+ *
+ * TODO: Try MX Player
+ */
+
 package com.intel.tsrytkon.goprovid;
 
 import android.app.Activity;
@@ -38,9 +44,11 @@ public class GoProActivity extends Activity {
     private static final String MEDIA = "media";
     private ListView listView;
     private TextView statusView;
-    private static String STREAM_VIDEO = "http://www.youtube.com/watch?v=vANZfQ1bTAk";
-    private static String FILE_VIDEO = "file:///storage/sdcard0/DCIM/100ANDRO/VID_0008.mp4";
+    private static String STREAM_VIDEO = "https://www.youtube.com/watch?v=z0JebT4kIPU";
+    //private static String FILE_VIDEO = "/storage/sdcard0/DCIM/100ANDRO/VID_0010.mp4";
+    private static String FILE_VIDEO = "storage/extSdCard/DCIM/Camera/20141224_135804.mp4";
     private static String GOPRO_VIDEO = "http://10.5.5.9:8080/live/amba.m3u8";
+    //https://www.youtube.com/watch?v=z0JebT4kIPU
 
     private class HttpAsyncTask extends AsyncTask<String, Void, String> {
         StringBuffer buffer = new StringBuffer();
@@ -170,14 +178,17 @@ public class GoProActivity extends Activity {
         else if (id == R.id.action_play_file) {
             Intent intent = new Intent(GoProActivity.this,
                     MediaPlayerVideoActivity.class);
-            intent.putExtra(MEDIA, FILE_VIDEO);
+            intent.putExtra(MEDIA, STREAM_VIDEO);
             startActivity(intent);
         }
         else if (id == R.id.action_play_live) {
-            Intent intent = new Intent(GoProActivity.this,
-                    MediaPlayerVideoActivity.class);
-            intent.putExtra(MEDIA, GOPRO_VIDEO);
-            startActivity(intent);
+            ExtractMpegFrames frames = new ExtractMpegFrames(FILE_VIDEO);
+            try {
+                frames.startExtractMpegFrames();
+            }
+            catch (Throwable e) {
+                System.out.println(e);
+            }
         }
 
         return super.onOptionsItemSelected(item);

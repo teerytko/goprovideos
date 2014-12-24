@@ -23,7 +23,8 @@ import java.net.URLEncoder;
 
 public class MediaPlayerVideoActivity extends Activity implements
         MediaPlayer.OnBufferingUpdateListener, MediaPlayer.OnCompletionListener, MediaPlayer.OnPreparedListener,
-        MediaPlayer.OnVideoSizeChangedListener, SurfaceHolder.Callback, CustomMediaController.MediaPlayerControl {
+        MediaPlayer.OnVideoSizeChangedListener, SurfaceHolder.Callback,
+        CustomMediaController.MediaPlayerControl, CustomMediaController.OnMediaControllerInteractionListener {
 
     private static final String TAG = "MediaPlayerDemo";
     private int mVideoWidth;
@@ -76,7 +77,10 @@ public class MediaPlayerVideoActivity extends Activity implements
             Log.i(TAG, "playVideo path " + path);
             if (path != "") {
                 // Create a new media player and set the listeners
-                mMediaPlayer = MediaPlayer.create(this, Uri.parse(path));
+                Uri myuri = Uri.parse(path);
+                Log.i(TAG, "playVideo myuri " + myuri);
+
+                mMediaPlayer = MediaPlayer.create(this, myuri);
                 mMediaPlayer.setOnBufferingUpdateListener(this);
                 mMediaPlayer.setOnCompletionListener(this);
                 mMediaPlayer.setOnPreparedListener(this);
@@ -84,6 +88,7 @@ public class MediaPlayerVideoActivity extends Activity implements
                 mMediaPlayer.setAudioStreamType(AudioManager.STREAM_MUSIC);
                 mMediaPlayer.setDisplay(holder);
                 mcontroller = new CustomMediaController(this);
+                mcontroller.setListener(this);
             }
 
         } catch (Exception e) {
@@ -189,7 +194,6 @@ public class MediaPlayerVideoActivity extends Activity implements
     }
 
     public int getDuration() {
-        System.out.println("getDuration "+mMediaPlayer.getDuration());
         return mMediaPlayer.getDuration();
     }
 
@@ -225,4 +229,21 @@ public class MediaPlayerVideoActivity extends Activity implements
     public int getAudioSessionId() {
         return 0;
     }
+
+    public void onRequestNextFrame() {
+        int curpos = getCurrentPosition();
+        int newpos = curpos + 16;
+        System.out.println("onRequestNextFrame: cur pos: "+curpos);
+        mMediaPlayer.seekTo(newpos);
+        mMediaPlayer.start();
+        mMediaPlayer.stop();
+        mcontroller.show();
+    }
+    public void onRequestPrevFrame() {
+
+        int curpos = getCurrentPosition();
+        System.out.println("onRequestPrevFrame: cur pos:"+curpos);
+
+    }
+
 }

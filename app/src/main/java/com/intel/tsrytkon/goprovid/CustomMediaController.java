@@ -28,6 +28,7 @@ public class CustomMediaController extends MediaController {
 
     public static interface OnMediaControllerInteractionListener {
         void onRequestNextFrame();
+        void onRequestPrevFrame();
     }
 
     Context mContext;
@@ -49,9 +50,16 @@ public class CustomMediaController extends MediaController {
         FrameLayout.LayoutParams frameParams = new FrameLayout.LayoutParams(
                 LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT);
         frameParams.gravity = Gravity.TOP;
+        FrameLayout.LayoutParams frameParamsN = new FrameLayout.LayoutParams(
+                LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT);
+        frameParamsN.gravity = Gravity.TOP | Gravity.RIGHT;
 
+        Button prevButton = new Button(mContext);
+        prevButton.setText("Prev");
 
         Button nextButton = new Button(mContext);
+        nextButton.setText("Next");
+        //nextButton.
 
         nextButton.setOnClickListener(new OnClickListener() {
             public void onClick(View v) {
@@ -60,8 +68,16 @@ public class CustomMediaController extends MediaController {
                 }
             }
         });
+        prevButton.setOnClickListener(new OnClickListener() {
+            public void onClick(View v) {
+                if(mListener != null) {
+                    mListener.onRequestPrevFrame();
+                }
+            }
+        });
 
-        addView(nextButton, frameParams);
+        addView(prevButton, frameParams);
+        addView(nextButton, frameParamsN);
     }
 
     @Override
