@@ -45,8 +45,8 @@ public class GoProActivity extends Activity {
     private ListView listView;
     private TextView statusView;
     private static String STREAM_VIDEO = "https://www.youtube.com/watch?v=z0JebT4kIPU";
-    //private static String FILE_VIDEO = "/storage/sdcard0/DCIM/100ANDRO/VID_0010.mp4";
-    private static String FILE_VIDEO = "storage/extSdCard/DCIM/Camera/20141224_135804.mp4";
+    private static String FILE_VIDEO = "/storage/sdcard0/DCIM/100ANDRO/VID_0010.mp4";
+    //private static String FILE_VIDEO = "storage/extSdCard/DCIM/Camera/20141224_135804.mp4";
     private static String GOPRO_VIDEO = "http://10.5.5.9:8080/live/amba.m3u8";
     //https://www.youtube.com/watch?v=z0JebT4kIPU
 
@@ -178,11 +178,11 @@ public class GoProActivity extends Activity {
         else if (id == R.id.action_play_file) {
             Intent intent = new Intent(GoProActivity.this,
                     MediaPlayerVideoActivity.class);
-            intent.putExtra(MEDIA, STREAM_VIDEO);
+            intent.putExtra(MEDIA, FILE_VIDEO);
             startActivity(intent);
         }
         else if (id == R.id.action_play_live) {
-            ExtractMpegFrames frames = new ExtractMpegFrames(FILE_VIDEO);
+            ExtractMpegFrames frames = new ExtractMpegFrames(FILE_VIDEO, null);
             try {
                 frames.startExtractMpegFrames();
             }

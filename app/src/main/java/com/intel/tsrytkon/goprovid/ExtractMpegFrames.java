@@ -34,6 +34,7 @@ import android.os.Environment;
 import android.test.AndroidTestCase;
 import android.util.Log;
 import android.view.Surface;
+import android.view.SurfaceView;
 
 import java.io.BufferedOutputStream;
 import java.io.File;
@@ -66,16 +67,18 @@ public class ExtractMpegFrames {
     // where to find files (note: requires WRITE_EXTERNAL_STORAGE permission)
     private static final File FILES_DIR = Environment.getExternalStorageDirectory();
     private static final int MAX_FRAMES = 10;       // stop extracting after this many
+    private SurfaceView mOutputView = null;
 
     private String mInputFile = "N/A";
 
-    public ExtractMpegFrames(String inputFile) {
+    public ExtractMpegFrames(String inputFile, SurfaceView outputView) {
         mInputFile = inputFile;
+        mOutputView = outputView;
     }
 
     /** test entry point */
     public void startExtractMpegFrames() throws Throwable {
-        ExtractMpegFramesWrapper.runExtract(this);
+        ExtractMpegFramesWrapper.startExtract(this);
     }
 
     /**
@@ -103,7 +106,7 @@ public class ExtractMpegFrames {
         }
 
         /** Entry point. */
-        public static void runExtract(ExtractMpegFrames obj) throws Throwable {
+        public static void startExtract(ExtractMpegFrames obj) throws Throwable {
             ExtractMpegFramesWrapper wrapper = new ExtractMpegFramesWrapper(obj);
             Thread th = new Thread(wrapper, "codec test");
             th.start();
@@ -294,10 +297,11 @@ public class ExtractMpegFrames {
                         outputSurface.drawImage(true);
 
                         if (decodeCount < MAX_FRAMES) {
-                            File outputFile = new File(FILES_DIR,
-                                    String.format("frame-%02d.png", decodeCount));
+                            //File outputFile = new File(FILES_DIR,
+                            //        String.format("frame-%02d.png", decodeCount));
                             long startWhen = System.nanoTime();
-                            outputSurface.saveFrame(outputFile.toString());
+                            //outputSurface.saveFrame(outputFile.toString());
+                            Log.d(TAG, "frame processed: "+decodeCount);
                             frameSaveTime += System.nanoTime() - startWhen;
                         }
                         decodeCount++;
