@@ -73,12 +73,21 @@ public class MediaPlayerVideoActivity extends Activity implements
     private void playVideo(String path) {
         doCleanUp();
         try {
-            ExtractMpegFrames frames = new ExtractMpegFrames(path, mPreview);
-            try {
-                frames.startExtractMpegFrames();
-            }
-            catch (Throwable e) {
-                System.out.println(e);
+            String tpath = URLEncoder.encode(path, "UTF-8");
+            Log.i(TAG, "playVideo path " + path);
+            if (path != "") {
+                // Create a new media player and set the listeners
+                Uri myuri = Uri.parse(path);
+                Log.i(TAG, "playVideo myuri " + myuri);
+                mMediaPlayer = MediaPlayer.create(this, myuri);
+                mMediaPlayer.setOnBufferingUpdateListener(this);
+                mMediaPlayer.setOnCompletionListener(this);
+                mMediaPlayer.setOnPreparedListener(this);
+                mMediaPlayer.setOnVideoSizeChangedListener(this);
+                mMediaPlayer.setAudioStreamType(AudioManager.STREAM_MUSIC);
+                mMediaPlayer.setDisplay(holder);
+                mcontroller = new CustomMediaController(this);
+                mcontroller.setListener(this);
             }
         } catch (Exception e) {
             Log.e(TAG, "error: " + e.getMessage(), e);

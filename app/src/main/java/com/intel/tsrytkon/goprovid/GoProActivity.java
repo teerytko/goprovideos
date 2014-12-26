@@ -177,18 +177,15 @@ public class GoProActivity extends Activity {
         }
         else if (id == R.id.action_play_file) {
             Intent intent = new Intent(GoProActivity.this,
-                    MediaPlayerVideoActivity.class);
+                    FramePlayerVideoActivity.class);
             intent.putExtra(MEDIA, FILE_VIDEO);
             startActivity(intent);
         }
         else if (id == R.id.action_play_live) {
-            ExtractMpegFrames frames = new ExtractMpegFrames(FILE_VIDEO, null);
-            try {
-                frames.startExtractMpegFrames();
-            }
-            catch (Throwable e) {
-                System.out.println(e);
-            }
+            Intent intent = new Intent(GoProActivity.this,
+                    MediaPlayerVideoActivity.class);
+            intent.putExtra(MEDIA, GOPRO_VIDEO);
+            startActivity(intent);
         }
 
         return super.onOptionsItemSelected(item);

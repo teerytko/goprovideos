@@ -25,6 +25,10 @@
             android:label="@string/title_activity_play_back" >
         </activity>
         <activity
+            android:name=".FramePlayerVideoActivity"
+            android:label="@string/title_activity_play_back" >
+        </activity>
+        <activity
             android:name=".VideoPlaybackFull"
             android:configChanges="orientation|keyboardHidden|screenSize"
             android:label="@string/title_activity_video_playback_full"

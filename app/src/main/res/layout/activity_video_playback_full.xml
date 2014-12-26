@@ -20,17 +20,34 @@
     <FrameLayout android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:fitsSystemWindows="true">
-
-        <LinearLayout android:id="@+id/fullscreen_content_controls"
-            style="?metaButtonBarStyle"
+        <ProgressBar
+            style="?android:attr/progressBarStyleHorizontal"
             android:layout_width="match_parent"
+            android:layout_height="60dp"
+            android:id="@+id/progress_bar"
+            android:layout_gravity="center_horizontal|top" />
+        <ImageView
+            android:layout_width="wrap_content"
+            android:layout_height="50dp"
+            android:id="@+id/action_play"
+            android:layout_gravity="center_horizontal|bottom"
+            android:clickable="true"
+            android:src="@android:drawable/btn_star" />
+        <ImageView
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_gravity="bottom|center_horizontal"
-            android:background="@color/black_overlay"
-            android:orientation="horizontal"
-            tools:ignore="UselessParent">
+            android:id="@+id/action_next"
+            android:layout_gravity="right|center_vertical"
+            android:src="@android:drawable/btn_plus" />
+        <ImageView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:id="@+id/action_prev"
+            android:layout_gravity="left|center_vertical"
+            android:src="@android:drawable/btn_minus" />
 
-        </LinearLayout>
     </FrameLayout>
+
+
 
 </FrameLayout>
