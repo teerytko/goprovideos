@@ -9,10 +9,13 @@ import android.util.Log;
 import android.view.MotionEvent;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
+import android.view.View;
+import android.widget.ImageButton;
+import android.widget.ImageView;
 import android.widget.ProgressBar;
 
 public class FramePlayerVideoActivity extends Activity implements
-        SurfaceHolder.Callback {
+        SurfaceHolder.Callback, View.OnClickListener {
 
     private static final String TAG = "MediaPlayerDemo";
     private int mVideoWidth;
@@ -21,17 +24,14 @@ public class FramePlayerVideoActivity extends Activity implements
     private SurfaceHolder holder;
     private CustomMediaController mcontroller;
     private ProgressBar mProgress;
+    private ImageButton mPlay;
+    private ImageButton mNext;
+    private ImageButton mPrev;
     private Handler handler = new Handler();
     private String path;
     private Bundle extras;
     private static final String MEDIA = "media";
-    private static final int LOCAL_AUDIO = 1;
-    private static final int STREAM_AUDIO = 2;
-    private static final int RESOURCES_AUDIO = 3;
-    private static final int LOCAL_VIDEO = 4;
-    private static final int STREAM_VIDEO = 5;
-    private boolean mIsVideoSizeKnown = false;
-    private boolean mIsVideoReadyToBePlayed = false;
+    ExtractMpegFrames mFrames;
 
     /**
      *
@@ -43,10 +43,44 @@ public class FramePlayerVideoActivity extends Activity implements
         setContentView(R.layout.activity_video_playback_full);
         mPreview = (SurfaceView) findViewById(R.id.fullscreen_content);
         mProgress = (ProgressBar) findViewById(R.id.progress_bar);
+        mPlay = (ImageButton) findViewById(R.id.action_play);
+        mPlay.setOnClickListener(this);
+        mNext = (ImageButton) findViewById(R.id.action_next);
+        mNext.setOnClickListener(this);
+        mPrev = (ImageButton) findViewById(R.id.action_prev);
+        mPrev.setOnClickListener(this);
         holder = mPreview.getHolder();
         holder.addCallback(this);
         //holder.setType(SurfaceHolder.SURFACE_TYPE_PUSH_BUFFERS);
         extras = getIntent().getExtras();
+    }
+
+    @Override
+    public void onClick(View v) {
+        if (v == mPlay) {
+            Log.i(TAG, "User clicked Play/pause");
+            try {
+                if (v.isSelected()) {
+                    v.setSelected(false);
+                    mFrames.play(1);
+                }
+                else {
+                    // Pause
+                    v.setSelected(true);
+                    mFrames.pause();
+                }
+            }
+            catch (Throwable t) {
+                Log.e(TAG, t.toString());
+            }
+        }
+        else if (v == mNext) {
+            Log.i(TAG, "User clicked Next");
+        }
+        else if (v == mPrev) {
+            Log.i(TAG, "User clicked Prev");
+        }
+
     }
 
     @Override
@@ -63,9 +97,9 @@ public class FramePlayerVideoActivity extends Activity implements
         doCleanUp();
         try {
             mProgress.setIndeterminate(false);
-            ExtractMpegFrames frames = new ExtractMpegFrames(path, mPreview, mProgress);
+            mFrames = new ExtractMpegFrames(path, mPreview, mProgress);
             try {
-                frames.startExtractMpegFrames();
+                mFrames.play(1);
             }
             catch (Throwable e) {
                 System.out.println(e);
@@ -103,8 +137,6 @@ public class FramePlayerVideoActivity extends Activity implements
     private void doCleanUp() {
         mVideoWidth = 0;
         mVideoHeight = 0;
-        mIsVideoReadyToBePlayed = false;
-        mIsVideoSizeKnown = false;
     }
 
     private void startVideoPlayback() {

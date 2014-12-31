@@ -26,25 +26,26 @@
             android:layout_height="60dp"
             android:id="@+id/progress_bar"
             android:layout_gravity="center_horizontal|top" />
-        <ImageView
+        <ImageButton
             android:layout_width="wrap_content"
-            android:layout_height="50dp"
+            android:layout_height="60dp"
             android:id="@+id/action_play"
             android:layout_gravity="center_horizontal|bottom"
             android:clickable="true"
-            android:src="@android:drawable/btn_star" />
-        <ImageView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
+            android:src="@drawable/play_btn" />
+        <ImageButton
+            android:layout_width="120dp"
+            android:layout_height="100dp"
             android:id="@+id/action_next"
             android:layout_gravity="right|center_vertical"
-            android:src="@android:drawable/btn_plus" />
-        <ImageView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
+            android:src="@drawable/ic_next" />
+        <ImageButton
+            android:layout_width="120dp"
+            android:layout_height="110dp"
             android:id="@+id/action_prev"
             android:layout_gravity="left|center_vertical"
-            android:src="@android:drawable/btn_minus" />
+            android:src="@drawable/ic_prev"
+            android:adjustViewBounds="true" />
 
     </FrameLayout>
 
