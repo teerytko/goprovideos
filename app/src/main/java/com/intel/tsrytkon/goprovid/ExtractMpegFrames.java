@@ -79,10 +79,11 @@ public class ExtractMpegFrames {
     private MediaExtractor extractor = null;
     private int saveWidth = 640;
     private int saveHeight = 480;
-    private int duration = 0;
+    private long duration = 0;
     private int trackIndex;
     boolean outputDone = false;
     boolean inputDone = false;
+    long mSeeking = -1;
     ByteBuffer[] mDecoderInputBuffers;
     /**
      */
@@ -91,7 +92,7 @@ public class ExtractMpegFrames {
         private ExtractMpegFrames mDecoder;
         public float mSpeed = 10;
         public final Semaphore nextFrame = new Semaphore(1, true);
-        public long sleepTime = 1000;
+        public long sleepTime = 100;
         public ExtractClock mClock;
         private Thread mThread = null;
         private boolean mRun = true;
@@ -129,7 +130,7 @@ public class ExtractMpegFrames {
                         if (mExtractThread.sleepTime>0)
                             Thread.sleep((int)(mExtractThread.sleepTime*mExtractThread.mSpeed));
                         else
-                            Thread.sleep(100);
+                            Thread.sleep(50);
                         mExtractThread.nextFrame.release();
                     }
                 } catch (InterruptedException e) {
@@ -217,7 +218,18 @@ public class ExtractMpegFrames {
     }
 
     public void next() throws Throwable {
-        //mWrapper.pause();
+        mWorkerThread.nextFrame.release();
+    }
+    public void seekTo(float pos) {
+        synchronized (this) {
+            if (mSeeking == -1) {
+                mSeeking = (long)(duration * 1000 * pos);
+                Log.i(TAG, "seekTo "+mSeeking);
+                extractor.seekTo(mSeeking, MediaExtractor.SEEK_TO_PREVIOUS_SYNC);
+                decoder.flush();
+                mWorkerThread.nextFrame.release(10);
+            }
+        }
     }
     public void prev() throws Throwable {
         //mWrapper.pause();
@@ -260,7 +272,7 @@ public class ExtractMpegFrames {
              */
             MediaPlayer mp = MediaPlayer.create(null, Uri.parse(mInputFile));
             duration = mp.getDuration();
-            mProgress.setMax(duration);
+            mProgress.setMax((int)duration);
             mp.release();
 
             extractor = new MediaExtractor();
@@ -272,9 +284,8 @@ public class ExtractMpegFrames {
             extractor.selectTrack(trackIndex);
 
             MediaFormat format = extractor.getTrackFormat(trackIndex);
-            long stime = extractor.getSampleTime();
             Log.d(TAG, "Video size is " + format.getInteger(MediaFormat.KEY_WIDTH) + "x" +
-                    format.getInteger(MediaFormat.KEY_HEIGHT)+" duration: "+stime);
+                    format.getInteger(MediaFormat.KEY_HEIGHT)+" duration: "+duration);
 
             // Create a MediaCodec decoder, and configure it with the MediaFormat from the
             // extractor.  It's very important to use the format from the extractor because
@@ -303,67 +314,70 @@ public class ExtractMpegFrames {
         final int TIMEOUT_USEC = 10000;
         int inputChunk = 0;
         int decodeCount = 0;
-
-        if (VERBOSE) Log.d(TAG, "loop");
-        // Feed more data to the decoder.
-        if (!inputDone) {
-            int inputBufIndex = decoder.dequeueInputBuffer(TIMEOUT_USEC);
-            if (inputBufIndex >= 0) {
-                ByteBuffer inputBuf = mDecoderInputBuffers[inputBufIndex];
-                // Read the sample data into the ByteBuffer.  This neither respects nor
-                // updates inputBuf's position, limit, etc.
-                int chunkSize = extractor.readSampleData(inputBuf, 0);
-                if (chunkSize < 0) {
-                    // End of stream -- send empty frame with EOS flag set.
-                    decoder.queueInputBuffer(inputBufIndex, 0, 0, 0L,
-                            MediaCodec.BUFFER_FLAG_END_OF_STREAM);
-                    inputDone = true;
-                    if (VERBOSE) Log.d(TAG, "sent input EOS");
+        synchronized (this) {
+            if (VERBOSE) Log.d(TAG, "loop");
+            // Feed more data to the decoder.
+            if (!inputDone) {
+                int inputBufIndex = decoder.dequeueInputBuffer(TIMEOUT_USEC);
+                if (inputBufIndex >= 0) {
+                    ByteBuffer inputBuf = mDecoderInputBuffers[inputBufIndex];
+                    // Read the sample data into the ByteBuffer.  This neither respects nor
+                    // updates inputBuf's position, limit, etc.
+                    int chunkSize = extractor.readSampleData(inputBuf, 0);
+                    if (chunkSize < 0) {
+                        // End of stream -- send empty frame with EOS flag set.
+                        decoder.queueInputBuffer(inputBufIndex, 0, 0, 0L,
+                                MediaCodec.BUFFER_FLAG_END_OF_STREAM);
+                        inputDone = true;
+                        if (VERBOSE) Log.d(TAG, "sent input EOS");
+                    } else {
+                        if (extractor.getSampleTrackIndex() != trackIndex) {
+                            Log.w(TAG, "WEIRD: got sample from track " +
+                                    extractor.getSampleTrackIndex() + ", expected " + trackIndex);
+                        }
+                        long presentationTimeUs = extractor.getSampleTime();
+                        decoder.queueInputBuffer(inputBufIndex, 0, chunkSize,
+                                presentationTimeUs, 0 /*flags*/);
+                        if (VERBOSE) {
+                            Log.d(TAG, "submitted frame " + inputChunk + " to dec, size=" +
+                                    chunkSize + " sampleTime: "+presentationTimeUs);
+                        }
+                        inputChunk++;
+                        extractor.advance();
+                    }
                 } else {
-                    if (extractor.getSampleTrackIndex() != trackIndex) {
-                        Log.w(TAG, "WEIRD: got sample from track " +
-                                extractor.getSampleTrackIndex() + ", expected " + trackIndex);
-                    }
-                    long presentationTimeUs = extractor.getSampleTime();
-                    decoder.queueInputBuffer(inputBufIndex, 0, chunkSize,
-                            presentationTimeUs, 0 /*flags*/);
-                    if (VERBOSE) {
-                        Log.d(TAG, "submitted frame " + inputChunk + " to dec, size=" +
-                                chunkSize + " sampleTime: "+presentationTimeUs);
-                    }
-                    inputChunk++;
-                    extractor.advance();
+                    if (VERBOSE) Log.d(TAG, "input buffer not available");
                 }
-            } else {
-                if (VERBOSE) Log.d(TAG, "input buffer not available");
             }
-        }
-        if (!outputDone) {
-            int decoderStatus = decoder.dequeueOutputBuffer(info, TIMEOUT_USEC);
-            if (decoderStatus == MediaCodec.INFO_TRY_AGAIN_LATER) {
-                // no output available yet
-                if (VERBOSE) Log.d(TAG, "no output from decoder available");
-            } else if (decoderStatus == MediaCodec.INFO_OUTPUT_BUFFERS_CHANGED) {
-                // not important for us, since we're using Surface
-                if (VERBOSE) Log.d(TAG, "decoder output buffers changed");
-            } else if (decoderStatus == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
-                MediaFormat newFormat = decoder.getOutputFormat();
-                if (VERBOSE) Log.d(TAG, "decoder output format changed: " + newFormat);
-            } else if (decoderStatus < 0) {
-                Log.e(TAG, "unexpected result from decoder.dequeueOutputBuffer: " + decoderStatus);
-            } else { // decoderStatus >= 0
-                if (VERBOSE) Log.d(TAG, "surface decoder given buffer " + decoderStatus +
-                        " (time=" + info.presentationTimeUs + ")");
-                if ((info.flags & MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0) {
-                    if (VERBOSE) Log.d(TAG, "output EOS");
-                    outputDone = true;
-                }
+            if (!outputDone) {
+                int decoderStatus = decoder.dequeueOutputBuffer(info, TIMEOUT_USEC);
+                if (decoderStatus == MediaCodec.INFO_TRY_AGAIN_LATER) {
+                    // no output available yet
+                    Log.i(TAG, "no output from decoder available");
+                } else if (decoderStatus == MediaCodec.INFO_OUTPUT_BUFFERS_CHANGED) {
+                    // not important for us, since we're using Surface
+                    if (VERBOSE) Log.i(TAG, "decoder output buffers changed");
+                } else if (decoderStatus == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
+                    MediaFormat newFormat = decoder.getOutputFormat();
+                    if (VERBOSE) Log.i(TAG, "decoder output format changed: " + newFormat);
+                } else if (decoderStatus < 0) {
+                    Log.e(TAG, "unexpected result from decoder.dequeueOutputBuffer: " + decoderStatus);
+                } else { // decoderStatus >= 0
+                    if (VERBOSE) Log.i(TAG, "surface decoder given buffer " + decoderStatus +
+                            " (time=" + info.presentationTimeUs + ")");
+                    if ((info.flags & MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0) {
+                        if (VERBOSE) Log.d(TAG, "output EOS");
+                        outputDone = true;
+                    }
+                    if (mSeeking > 0)
+                        mSeeking = -1;
 
-                boolean doRender = (info.size != 0);
-                if (mProgress != null)
-                    mProgress.setProgress((int)info.presentationTimeUs/1000);
-                decoder.releaseOutputBuffer(decoderStatus, doRender);
+                    boolean doRender = (info.size != 0);
+                    if (mProgress != null)
+                        mProgress.setProgress((int)info.presentationTimeUs/1000);
+                    decoder.releaseOutputBuffer(decoderStatus, doRender);
+                }
             }
         }
-    }
+   }
 }

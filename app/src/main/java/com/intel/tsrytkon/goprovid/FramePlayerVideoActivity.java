@@ -15,7 +15,7 @@ import android.widget.ImageView;
 import android.widget.ProgressBar;
 
 public class FramePlayerVideoActivity extends Activity implements
-        SurfaceHolder.Callback, View.OnClickListener {
+        SurfaceHolder.Callback, View.OnClickListener, View.OnTouchListener {
 
     private static final String TAG = "MediaPlayerDemo";
     private int mVideoWidth;
@@ -43,6 +43,7 @@ public class FramePlayerVideoActivity extends Activity implements
         setContentView(R.layout.activity_video_playback_full);
         mPreview = (SurfaceView) findViewById(R.id.fullscreen_content);
         mProgress = (ProgressBar) findViewById(R.id.progress_bar);
+        mProgress.setOnTouchListener(this);
         mPlay = (ImageButton) findViewById(R.id.action_play);
         mPlay.setOnClickListener(this);
         mNext = (ImageButton) findViewById(R.id.action_next);
@@ -57,30 +58,40 @@ public class FramePlayerVideoActivity extends Activity implements
 
     @Override
     public void onClick(View v) {
-        if (v == mPlay) {
-            Log.i(TAG, "User clicked Play/pause");
-            try {
-                if (v.isSelected()) {
-                    v.setSelected(false);
-                    mFrames.play(1);
-                }
-                else {
-                    // Pause
-                    v.setSelected(true);
-                    mFrames.pause();
-                }
+        try {
+            if (v == mPlay) {
+                Log.i(TAG, "User clicked Play/pause");
+                    if (v.isSelected()) {
+                        v.setSelected(false);
+                        mFrames.pause();
+                    }
+                    else {
+                        v.setSelected(true);
+                        mFrames.play(1);
+                    }
             }
-            catch (Throwable t) {
-                Log.e(TAG, t.toString());
+            else if (v == mNext) {
+                Log.i(TAG, "User clicked Next");
+                mFrames.next();
             }
-        }
-        else if (v == mNext) {
-            Log.i(TAG, "User clicked Next");
-        }
-        else if (v == mPrev) {
-            Log.i(TAG, "User clicked Prev");
-        }
+            else if (v == mPrev) {
+                Log.i(TAG, "User clicked Prev");
+                mFrames.prev();
+            }
 
+        }
+        catch (Throwable t) {
+            Log.e(TAG, t.toString());
+        }
+    }
+    @Override
+    public boolean onTouch(View v, MotionEvent event) {
+        if (v == mProgress) {
+            float pos = event.getX()/v.getWidth();
+            Log.i(TAG, "User touched progress - "+pos);
+            mFrames.seekTo(pos);
+        }
+        return true;
     }
 
     @Override
@@ -100,6 +111,8 @@ public class FramePlayerVideoActivity extends Activity implements
             mFrames = new ExtractMpegFrames(path, mPreview, mProgress);
             try {
                 mFrames.play(1);
+                mPlay.setSelected(true);
+
             }
             catch (Throwable e) {
                 System.out.println(e);
