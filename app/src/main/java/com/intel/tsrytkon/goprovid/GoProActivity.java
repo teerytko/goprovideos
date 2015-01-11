@@ -33,6 +33,7 @@ import java.util.ArrayList;
 
 
 public class GoProActivity extends FragmentActivity implements LoaderManager.LoaderCallbacks<Cursor> {
+    static final int REQUEST_VIDEO_CAPTURE = 1;
     private static final String MEDIA = "media";
     private ListView mListView;
     private ArrayList mPaths = new ArrayList();
@@ -132,17 +133,11 @@ public class GoProActivity extends FragmentActivity implements LoaderManager.Loa
             intent.putExtra(MEDIA, FILE_VIDEO);
             startActivity(intent);
         }
-        else if (id == R.id.action_play_file) {
-            Intent intent = new Intent(GoProActivity.this,
-                    FramePlayerVideoActivity.class);
-            intent.putExtra(MEDIA, FILE_VIDEO);
-            startActivity(intent);
-        }
-        else if (id == R.id.action_play_live) {
-            Intent intent = new Intent(GoProActivity.this,
-                    MediaPlayerVideoActivity.class);
-            intent.putExtra(MEDIA, GOPRO_VIDEO);
-            startActivity(intent);
+        else if (id == R.id.action_record) {
+            Intent takeVideoIntent = new Intent(MediaStore.ACTION_VIDEO_CAPTURE);
+            if (takeVideoIntent.resolveActivity(getPackageManager()) != null) {
+                startActivityForResult(takeVideoIntent, REQUEST_VIDEO_CAPTURE);
+            }
         }
 
         return super.onOptionsItemSelected(item);
