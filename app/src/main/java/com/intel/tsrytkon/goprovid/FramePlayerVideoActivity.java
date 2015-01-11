@@ -3,13 +3,16 @@
 package com.intel.tsrytkon.goprovid;
 
 import android.app.Activity;
+import android.content.Context;
 import android.os.Bundle;
 import android.os.Handler;
 import android.util.Log;
+import android.view.Display;
 import android.view.MotionEvent;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.view.View;
+import android.view.WindowManager;
 import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.ProgressBar;
@@ -52,6 +55,7 @@ public class FramePlayerVideoActivity extends Activity implements
         mPrev.setOnClickListener(this);
         holder = mPreview.getHolder();
         holder.addCallback(this);
+        //mPreview.setRotation(45);
         //holder.setType(SurfaceHolder.SURFACE_TYPE_PUSH_BUFFERS);
         extras = getIntent().getExtras();
     }
@@ -131,7 +135,9 @@ public class FramePlayerVideoActivity extends Activity implements
     }
 
     public void surfaceCreated(SurfaceHolder holder) {
-        Log.d(TAG, "surfaceCreated called");
+        Display display = ((WindowManager) this.getSystemService(Context.WINDOW_SERVICE)).getDefaultDisplay();
+        int rotation = display.getRotation();
+        Log.d(TAG, "surfaceCreated called "+rotation);
         playVideo(extras.getString(MEDIA));
     }
 

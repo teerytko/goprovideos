@@ -17,23 +17,11 @@
 
 package com.intel.tsrytkon.goprovid;
 
-import android.graphics.Bitmap;
-import android.graphics.SurfaceTexture;
 import android.media.MediaCodec;
 import android.media.MediaExtractor;
 import android.media.MediaFormat;
 import android.media.MediaPlayer;
-import android.net.Uri;
-import android.opengl.EGL14;
-import android.opengl.EGLConfig;
-import android.opengl.EGLContext;
-import android.opengl.EGLDisplay;
-import android.opengl.EGLSurface;
-import android.opengl.GLES11Ext;
-import android.opengl.GLES20;
-import android.opengl.Matrix;
 import android.os.Environment;
-import android.test.AndroidTestCase;
 import android.util.Log;
 import android.view.Surface;
 import android.view.SurfaceView;
@@ -223,7 +211,7 @@ public class ExtractMpegFrames {
     public void seekTo(float pos) {
         synchronized (this) {
             if (mSeeking == -1) {
-                mSeeking = (long)(duration * 1000 * pos);
+                mSeeking = (long)(duration * pos);
                 Log.i(TAG, "seekTo "+mSeeking);
                 extractor.seekTo(mSeeking, MediaExtractor.SEEK_TO_PREVIOUS_SYNC);
                 decoder.flush();
@@ -267,14 +255,6 @@ public class ExtractMpegFrames {
             if (!inputFile.canRead()) {
                 throw new FileNotFoundException("Unable to read " + inputFile);
             }
-            /*
-             * Parse the duration of the video
-             */
-            MediaPlayer mp = MediaPlayer.create(null, Uri.parse(mInputFile));
-            duration = mp.getDuration();
-            mProgress.setMax((int)duration);
-            mp.release();
-
             extractor = new MediaExtractor();
             extractor.setDataSource(inputFile.toString());
             trackIndex = selectTrack(extractor);
@@ -284,6 +264,8 @@ public class ExtractMpegFrames {
             extractor.selectTrack(trackIndex);
 
             MediaFormat format = extractor.getTrackFormat(trackIndex);
+            duration = format.getLong(MediaFormat.KEY_DURATION);
+            mProgress.setMax((int)duration);
             Log.d(TAG, "Video size is " + format.getInteger(MediaFormat.KEY_WIDTH) + "x" +
                     format.getInteger(MediaFormat.KEY_HEIGHT)+" duration: "+duration);
 
@@ -374,7 +356,7 @@ public class ExtractMpegFrames {
 
                     boolean doRender = (info.size != 0);
                     if (mProgress != null)
-                        mProgress.setProgress((int)info.presentationTimeUs/1000);
+                        mProgress.setProgress((int)info.presentationTimeUs);
                     decoder.releaseOutputBuffer(decoderStatus, doRender);
                 }
             }
