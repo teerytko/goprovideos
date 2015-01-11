@@ -4,26 +4,28 @@ package com.intel.tsrytkon.goprovid;
 
 import android.app.Activity;
 import android.content.Context;
+import android.graphics.Matrix;
+import android.graphics.SurfaceTexture;
 import android.os.Bundle;
 import android.os.Handler;
 import android.util.Log;
 import android.view.Display;
 import android.view.MotionEvent;
+import android.view.Surface;
 import android.view.SurfaceHolder;
-import android.view.SurfaceView;
+import android.view.TextureView;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.ImageButton;
-import android.widget.ImageView;
 import android.widget.ProgressBar;
 
 public class FramePlayerVideoActivity extends Activity implements
-        SurfaceHolder.Callback, View.OnClickListener, View.OnTouchListener {
+        SurfaceHolder.Callback, View.OnClickListener, View.OnTouchListener, TextureView.SurfaceTextureListener {
 
-    private static final String TAG = "MediaPlayerDemo";
+    private static final String TAG = "FramePlayerVideoActivity";
     private int mVideoWidth;
     private int mVideoHeight;
-    private SurfaceView mPreview;
+    private TextureView mPreview;
     private SurfaceHolder holder;
     private CustomMediaController mcontroller;
     private ProgressBar mProgress;
@@ -34,7 +36,7 @@ public class FramePlayerVideoActivity extends Activity implements
     private String path;
     private Bundle extras;
     private static final String MEDIA = "media";
-    ExtractMpegFrames mFrames;
+    ExtractMpegFrames mPlayer;
 
     /**
      *
@@ -44,7 +46,8 @@ public class FramePlayerVideoActivity extends Activity implements
     public void onCreate(Bundle icicle) {
         super.onCreate(icicle);
         setContentView(R.layout.activity_video_playback_full);
-        mPreview = (SurfaceView) findViewById(R.id.fullscreen_content);
+        mPreview = (TextureView) findViewById(R.id.fullscreen_content);
+        mPreview.setSurfaceTextureListener(this);
         mProgress = (ProgressBar) findViewById(R.id.progress_bar);
         mProgress.setOnTouchListener(this);
         mPlay = (ImageButton) findViewById(R.id.action_play);
@@ -53,11 +56,40 @@ public class FramePlayerVideoActivity extends Activity implements
         mNext.setOnClickListener(this);
         mPrev = (ImageButton) findViewById(R.id.action_prev);
         mPrev.setOnClickListener(this);
-        holder = mPreview.getHolder();
-        holder.addCallback(this);
+
+
+        //holder = mPreview.getHolder();
+        //holder.addCallback(this);
         //mPreview.setRotation(45);
         //holder.setType(SurfaceHolder.SURFACE_TYPE_PUSH_BUFFERS);
         extras = getIntent().getExtras();
+    }
+
+    @Override
+    public void onSurfaceTextureAvailable(SurfaceTexture st, int width, int height) {
+        // There's a short delay between the start of the activity and the initialization
+        // of the SurfaceTexture that backs the TextureView.  We don't want to try to
+        // send a video stream to the TextureView before it has initialized, so we disable
+        // the "play" button until this callback fires.
+        Log.d(TAG, "SurfaceTexture ready (" + width + "x" + height + ")");
+        playVideo(extras.getString(MEDIA));
+    }
+
+    @Override
+    public boolean onSurfaceTextureDestroyed(SurfaceTexture st) {
+        Log.d(TAG, "SurfaceTexture destroyed");
+        // assume activity is pausing, so don't need to update controls
+        return true;    // caller should release ST
+    }
+    @Override
+    public void onSurfaceTextureSizeChanged(SurfaceTexture st, int width, int height) {
+        Log.d(TAG, "SurfaceTexture onSurfaceTextureSizeChanged");
+        // ignore
+    }
+    @Override
+    public void onSurfaceTextureUpdated(SurfaceTexture surface) {
+        Log.d(TAG, "SurfaceTexture onSurfaceTextureUpdated");
+        // ignore
     }
 
     @Override
@@ -67,20 +99,20 @@ public class FramePlayerVideoActivity extends Activity implements
                 Log.i(TAG, "User clicked Play/pause");
                     if (v.isSelected()) {
                         v.setSelected(false);
-                        mFrames.pause();
+                        mPlayer.pause();
                     }
                     else {
                         v.setSelected(true);
-                        mFrames.play(1);
+                        mPlayer.play(1);
                     }
             }
             else if (v == mNext) {
                 Log.i(TAG, "User clicked Next");
-                mFrames.next();
+                mPlayer.next();
             }
             else if (v == mPrev) {
                 Log.i(TAG, "User clicked Prev");
-                mFrames.prev();
+                mPlayer.prev();
             }
 
         }
@@ -93,7 +125,7 @@ public class FramePlayerVideoActivity extends Activity implements
         if (v == mProgress) {
             float pos = event.getX()/v.getWidth();
             Log.i(TAG, "User touched progress - "+pos);
-            mFrames.seekTo(pos);
+            mPlayer.seekTo(pos);
         }
         return true;
     }
@@ -111,10 +143,16 @@ public class FramePlayerVideoActivity extends Activity implements
     private void playVideo(String path) {
         doCleanUp();
         try {
+            Log.i(TAG, "playVideo: "+path);
             mProgress.setIndeterminate(false);
-            mFrames = new ExtractMpegFrames(path, mPreview, mProgress);
+            Surface s = new Surface(mPreview.getSurfaceTexture());
+            mPlayer = new ExtractMpegFrames(path, s, mProgress);
+            adjustAspectRatio(
+                    mPlayer.getVideoWidth(),
+                    mPlayer.getVideoHeight(),
+                    mPlayer.getVideoRotation());
             try {
-                mFrames.play(1);
+                mPlayer.play(1);
                 mPlay.setSelected(true);
 
             }
@@ -124,6 +162,54 @@ public class FramePlayerVideoActivity extends Activity implements
         } catch (Exception e) {
             Log.e(TAG, "error: " + e.getMessage(), e);
         }
+    }
+
+    private void adjustAspectRatio(int videoWidth, int videoHeight, int rotation) {
+        int viewWidth = mPreview.getWidth();
+        int viewHeight = mPreview.getHeight();
+        boolean reverse = false;
+        double aspectRatio = (double) videoHeight / videoWidth;
+        if (rotation == 90 || rotation == 270) {
+            reverse = true;
+        }
+
+        int newWidth, newHeight;
+        if (viewHeight > (int) (viewWidth * aspectRatio)) {
+            // limited by narrow width; restrict height
+            if (reverse) {
+                newWidth = viewHeight;
+                newHeight = (int) (viewHeight * aspectRatio);
+            }
+            else {
+                newWidth = viewWidth;
+                newHeight = (int) (viewWidth * aspectRatio);
+            }
+
+        } else {
+            // limited by short height; restrict width
+            if (reverse) {
+                newWidth = viewHeight;
+                newHeight = (int) (viewHeight * aspectRatio);
+            }
+            else {
+                newHeight = viewHeight;
+                newWidth = (int) (viewHeight / aspectRatio);
+            }
+        }
+        int xoff = (viewWidth - newWidth) / 2;
+        int yoff = (viewHeight - newHeight) / 2;
+        Log.v(TAG, "video=" + videoWidth + "x" + videoHeight +
+                " aspect=" + aspectRatio +
+                " view=" + viewWidth + "x" + viewHeight +
+                " newView=" + newWidth + "x" + newHeight +
+                " off=" + xoff + "," + yoff);
+
+        Matrix txform = new Matrix();
+        mPreview.getTransform(txform);
+        txform.setScale((float) newWidth / viewWidth, (float) newHeight / viewHeight);
+        txform.postRotate(rotation, newWidth / 2, newHeight / 2);          // just for fun
+        txform.postTranslate(xoff, yoff);
+        mPreview.setTransform(txform);
     }
 
     public void surfaceChanged(SurfaceHolder surfaceholder, int i, int j, int k) {

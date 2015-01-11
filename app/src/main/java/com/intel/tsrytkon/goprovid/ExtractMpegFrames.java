@@ -17,14 +17,17 @@
 
 package com.intel.tsrytkon.goprovid;
 
+import android.graphics.SurfaceTexture;
 import android.media.MediaCodec;
 import android.media.MediaExtractor;
 import android.media.MediaFormat;
+import android.media.MediaMetadataRetriever;
 import android.media.MediaPlayer;
 import android.os.Environment;
 import android.util.Log;
 import android.view.Surface;
 import android.view.SurfaceView;
+import android.view.TextureView;
 import android.widget.ProgressBar;
 
 import java.io.BufferedOutputStream;
@@ -59,7 +62,6 @@ public class ExtractMpegFrames {
     // where to find files (note: requires WRITE_EXTERNAL_STORAGE permission)
     private static final File FILES_DIR = Environment.getExternalStorageDirectory();
     private static final int MAX_FRAMES = 10;       // stop extracting after this many
-    private SurfaceView mOutputView = null;
     private ProgressBar mProgress = null;
     private ExtractMpegFramesThread mWorkerThread;
     private String mInputFile = "N/A";
@@ -73,113 +75,14 @@ public class ExtractMpegFrames {
     boolean inputDone = false;
     long mSeeking = -1;
     ByteBuffer[] mDecoderInputBuffers;
-    /**
-     */
-    private static class ExtractMpegFramesThread implements Runnable {
-        private Throwable mThrowable;
-        private ExtractMpegFrames mDecoder;
-        public float mSpeed = 10;
-        public final Semaphore nextFrame = new Semaphore(1, true);
-        public long sleepTime = 100;
-        public ExtractClock mClock;
-        private Thread mThread = null;
-        private boolean mRun = true;
+    private Surface mSurface = null;
+    private MediaFormat mFormat;
 
-        private static class ExtractClock implements Runnable {
-            ExtractMpegFramesThread mExtractThread;
-            private boolean mRun = true;
-            private Thread mThread;
-
-            private ExtractClock(ExtractMpegFramesThread extractThread) {
-                mExtractThread = extractThread;
-            }
-
-            public void start() {
-                mRun = true;
-                mThread = new Thread(this, "codec clock");
-                mThread.start();
-            }
-            public void stop() {
-                mRun = false;
-                try {
-                    mThread.join();
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-            }
-
-            @Override
-            public void run() {
-                try {
-                    while (mRun) {
-                        Log.i(TAG, "Running clock!! "+mExtractThread.sleepTime*mExtractThread.mSpeed);
-                        // Make sure that the sleep time is something more than 0
-                        // To avoid crazy loops
-                        if (mExtractThread.sleepTime>0)
-                            Thread.sleep((int)(mExtractThread.sleepTime*mExtractThread.mSpeed));
-                        else
-                            Thread.sleep(50);
-                        mExtractThread.nextFrame.release();
-                    }
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                }
-            }
-        }
-
-        private ExtractMpegFramesThread(ExtractMpegFrames decoder) {
-            mDecoder = decoder;
-            mClock = new ExtractClock(this);
-        }
-        public void start() {
-            mThread = new Thread(this, "codec clock");
-            mThread.start();
-        }
-        public void stop() {
-            mRun = false;
-            try {
-                mThread.join();
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-        }
-
-        @Override
-        public void run() {
-            try {
-                mDecoder.initialize();
-                MediaCodec.BufferInfo info = new MediaCodec.BufferInfo();
-                long frameSaveTime = 0;
-                long prevTime = 0;
-
-                while (!mDecoder.outputDone && mRun) {
-                    Log.i(TAG, "Main loop");
-                    nextFrame.acquire();
-                    Log.i(TAG, "Main loop - next frame");
-                    mDecoder.doExtract(mDecoder.extractor,
-                            mDecoder.trackIndex,
-                            mDecoder.decoder,
-                            info);
-                    Log.i(TAG, "Main loop - frame done");
-                    sleepTime = (info.presentationTimeUs - prevTime) / 1000;
-                    prevTime = info.presentationTimeUs;
-                }
-                mClock.stop();
-            } catch (Throwable th) {
-                Log.e(TAG, String.valueOf(th));
-                mThrowable = th;
-            }
-            finally {
-                mClock.stop();
-                mDecoder.doCleanup();
-            }
-        }
-    }
-
-    public ExtractMpegFrames(String inputFile, SurfaceView outputView, ProgressBar progress) {
+    public ExtractMpegFrames(String inputFile, Surface surface, ProgressBar progress) {
         mInputFile = inputFile;
-        mOutputView = outputView;
+        mSurface = surface;
         mProgress = progress;
+        initializeExtractor();
         mWorkerThread = new ExtractMpegFramesThread(this);
         mWorkerThread.start();
     }
@@ -208,6 +111,7 @@ public class ExtractMpegFrames {
     public void next() throws Throwable {
         mWorkerThread.nextFrame.release();
     }
+
     public void seekTo(float pos) {
         synchronized (this) {
             if (mSeeking == -1) {
@@ -221,6 +125,22 @@ public class ExtractMpegFrames {
     }
     public void prev() throws Throwable {
         //mWrapper.pause();
+    }
+
+    public int getVideoWidth() {
+        return mFormat.getInteger(MediaFormat.KEY_WIDTH);
+    }
+    public int getVideoHeight() {
+        return mFormat.getInteger(MediaFormat.KEY_HEIGHT);
+    }
+    public int getVideoRotation() {
+        Log.d(TAG, "getVideoRotation");
+        MediaMetadataRetriever reader = new MediaMetadataRetriever();
+        reader.setDataSource(mInputFile);
+        String rotation = reader.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION);
+        Log.d(TAG, "getVideoRotation: "+rotation);
+        reader.release();
+        return Integer.parseInt(rotation);
     }
 
     /**
@@ -246,7 +166,7 @@ public class ExtractMpegFrames {
 
     /**
      */
-    private void initialize() throws IOException {
+    private void initializeExtractor() {
         try {
             System.out.println("extractMpegFrames input: "+mInputFile);
             File inputFile = new File(mInputFile);   // must be an absolute path
@@ -262,20 +182,25 @@ public class ExtractMpegFrames {
                 throw new RuntimeException("No video track found in " + inputFile);
             }
             extractor.selectTrack(trackIndex);
-
-            MediaFormat format = extractor.getTrackFormat(trackIndex);
-            duration = format.getLong(MediaFormat.KEY_DURATION);
+            mFormat = extractor.getTrackFormat(trackIndex);
+            duration = mFormat.getLong(MediaFormat.KEY_DURATION);
             mProgress.setMax((int)duration);
-            Log.d(TAG, "Video size is " + format.getInteger(MediaFormat.KEY_WIDTH) + "x" +
-                    format.getInteger(MediaFormat.KEY_HEIGHT)+" duration: "+duration);
+            Log.d(TAG, "Video size is " + mFormat.getInteger(MediaFormat.KEY_WIDTH) + "x" +
+                    mFormat.getInteger(MediaFormat.KEY_HEIGHT)+" duration: "+duration);
 
+        } catch (Exception e) {
+            e.printStackTrace();
+            System.out.println(e);
+        }
+    }
+    private void initializeDecoder() throws IOException {
+        try {
             // Create a MediaCodec decoder, and configure it with the MediaFormat from the
             // extractor.  It's very important to use the format from the extractor because
             // it contains a copy of the CSD-0/CSD-1 codec-specific data chunks.
-            String mime = format.getString(MediaFormat.KEY_MIME);
+            String mime = mFormat.getString(MediaFormat.KEY_MIME);
             decoder = MediaCodec.createDecoderByType(mime);
-            Surface s = mOutputView.getHolder().getSurface();
-            decoder.configure(format, s, null, 0);
+            decoder.configure(mFormat, mSurface, null, 0);
             decoder.start();
             mDecoderInputBuffers = decoder.getInputBuffers();
 
@@ -362,4 +287,106 @@ public class ExtractMpegFrames {
             }
         }
    }
+    /**
+     */
+    private static class ExtractMpegFramesThread implements Runnable {
+        private Throwable mThrowable;
+        private ExtractMpegFrames mDecoder;
+        public float mSpeed = 10;
+        public final Semaphore nextFrame = new Semaphore(1, true);
+        public long sleepTime = 100;
+        public ExtractClock mClock;
+        private Thread mThread = null;
+        private boolean mRun = true;
+
+        private static class ExtractClock implements Runnable {
+            ExtractMpegFramesThread mExtractThread;
+            private boolean mRun = true;
+            private Thread mThread;
+
+            private ExtractClock(ExtractMpegFramesThread extractThread) {
+                mExtractThread = extractThread;
+            }
+
+            public void start() {
+                mRun = true;
+                mThread = new Thread(this, "codec clock");
+                mThread.start();
+            }
+            public void stop() {
+                mRun = false;
+                try {
+                    mThread.join();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+
+            @Override
+            public void run() {
+                try {
+                    while (mRun) {
+                        Log.i(TAG, "Running clock!! "+mExtractThread.sleepTime*mExtractThread.mSpeed);
+                        // Make sure that the sleep time is something more than 0
+                        // To avoid crazy loops
+                        if (mExtractThread.sleepTime>0)
+                            Thread.sleep((int)(mExtractThread.sleepTime*mExtractThread.mSpeed));
+                        else
+                            Thread.sleep(50);
+                        mExtractThread.nextFrame.release();
+                    }
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+
+        private ExtractMpegFramesThread(ExtractMpegFrames decoder) {
+            mDecoder = decoder;
+            mClock = new ExtractClock(this);
+        }
+        public void start() {
+            mThread = new Thread(this, "codec clock");
+            mThread.start();
+        }
+        public void stop() {
+            mRun = false;
+            try {
+                mThread.join();
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+
+        @Override
+        public void run() {
+            try {
+                mDecoder.initializeDecoder();
+                MediaCodec.BufferInfo info = new MediaCodec.BufferInfo();
+                long frameSaveTime = 0;
+                long prevTime = 0;
+
+                while (!mDecoder.outputDone && mRun) {
+                    Log.i(TAG, "Main loop");
+                    nextFrame.acquire();
+                    Log.i(TAG, "Main loop - next frame");
+                    mDecoder.doExtract(mDecoder.extractor,
+                            mDecoder.trackIndex,
+                            mDecoder.decoder,
+                            info);
+                    Log.i(TAG, "Main loop - frame done");
+                    sleepTime = (info.presentationTimeUs - prevTime) / 1000;
+                    prevTime = info.presentationTimeUs;
+                }
+                mClock.stop();
+            } catch (Throwable th) {
+                Log.e(TAG, String.valueOf(th));
+                mThrowable = th;
+            }
+            finally {
+                mClock.stop();
+                mDecoder.doCleanup();
+            }
+        }
+    }
 }
