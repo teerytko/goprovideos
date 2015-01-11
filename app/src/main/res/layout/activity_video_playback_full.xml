@@ -2,7 +2,7 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#0099cc"
+    android:background="#000000"
     tools:context="com.intel.tsrytkon.goprovid.VideoPlaybackFull">
 
     <!-- The primary full-screen view. This can be replaced with whatever view
@@ -19,36 +19,42 @@
 
     <!-- This FrameLayout insets its children based on system windows using
          android:fitsSystemWindows. -->
+
     <FrameLayout android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:fitsSystemWindows="true"
         android:layout_gravity="center_horizontal|bottom">
+
         <ProgressBar
             style="?android:attr/progressBarStyleHorizontal"
             android:layout_width="match_parent"
             android:layout_height="60dp"
             android:id="@+id/progress_bar"
             android:layout_gravity="center_horizontal|top" />
-        <ImageButton
+
+        <LinearLayout
+            android:orientation="horizontal"
+            android:layout_gravity="bottom|center_horizontal"
             android:layout_width="wrap_content"
-            android:layout_height="60dp"
-            android:id="@+id/action_play"
-            android:layout_gravity="center_horizontal|bottom"
-            android:clickable="true"
-            android:src="@drawable/play_btn" />
-        <ImageButton
-            android:layout_width="120dp"
-            android:layout_height="100dp"
-            android:id="@+id/action_next"
-            android:layout_gravity="right|center_vertical"
-            android:src="@drawable/ic_next" />
-        <ImageButton
-            android:layout_width="120dp"
-            android:layout_height="110dp"
-            android:id="@+id/action_prev"
-            android:layout_gravity="left|center_vertical"
-            android:src="@drawable/ic_prev"
-            android:adjustViewBounds="true" />
+            android:layout_height="wrap_content">
+
+            <ImageButton
+                android:layout_width="120dp"
+                android:layout_height="100dp"
+                android:id="@+id/action_prev"
+                android:src="@drawable/ic_prev" />
+            <ImageButton
+                android:layout_width="120dp"
+                android:layout_height="100dp"
+                android:id="@+id/action_play"
+                android:clickable="true"
+                android:src="@drawable/play_btn" />
+            <ImageButton
+                android:layout_width="120dp"
+                android:layout_height="100dp"
+                android:id="@+id/action_next"
+                android:src="@drawable/ic_next" />
+        </LinearLayout>
 
     </FrameLayout>
 
