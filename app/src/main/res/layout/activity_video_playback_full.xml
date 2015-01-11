@@ -49,6 +49,12 @@
                 android:id="@+id/action_play"
                 android:clickable="true"
                 android:src="@drawable/play_btn" />
+            <Button
+                android:layout_width="120dp"
+                android:layout_height="100dp"
+                android:id="@+id/action_speed"
+                android:clickable="true"
+                android:text="1/1"/>
             <ImageButton
                 android:layout_width="120dp"
                 android:layout_height="100dp"

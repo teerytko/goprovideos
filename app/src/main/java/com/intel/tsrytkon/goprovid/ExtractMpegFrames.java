@@ -98,9 +98,11 @@ public class ExtractMpegFrames {
             extractor = null;
         }
     }
-
-    public void play(float speed) throws Throwable {
+    public void setSpeed(float speed) {
         mWorkerThread.mSpeed = speed;
+    }
+
+    public void play() throws Throwable {
         mWorkerThread.mClock.start();
     }
 
@@ -292,7 +294,7 @@ public class ExtractMpegFrames {
     private static class ExtractMpegFramesThread implements Runnable {
         private Throwable mThrowable;
         private ExtractMpegFrames mDecoder;
-        public float mSpeed = 10;
+        public float mSpeed = 1;
         public final Semaphore nextFrame = new Semaphore(1, true);
         public long sleepTime = 100;
         public ExtractClock mClock;

@@ -16,6 +16,7 @@ import android.view.SurfaceHolder;
 import android.view.TextureView;
 import android.view.View;
 import android.view.WindowManager;
+import android.widget.Button;
 import android.widget.ImageButton;
 import android.widget.ProgressBar;
 
@@ -27,11 +28,11 @@ public class FramePlayerVideoActivity extends Activity implements
     private int mVideoHeight;
     private TextureView mPreview;
     private SurfaceHolder holder;
-    private CustomMediaController mcontroller;
     private ProgressBar mProgress;
     private ImageButton mPlay;
     private ImageButton mNext;
     private ImageButton mPrev;
+    private Button mSpeed;
     private Handler handler = new Handler();
     private String path;
     private Bundle extras;
@@ -56,6 +57,8 @@ public class FramePlayerVideoActivity extends Activity implements
         mNext.setOnClickListener(this);
         mPrev = (ImageButton) findViewById(R.id.action_prev);
         mPrev.setOnClickListener(this);
+        mSpeed = (Button) findViewById(R.id.action_speed);
+        mSpeed.setOnClickListener(this);
 
 
         //holder = mPreview.getHolder();
@@ -103,7 +106,7 @@ public class FramePlayerVideoActivity extends Activity implements
                     }
                     else {
                         v.setSelected(true);
-                        mPlayer.play(1);
+                        mPlayer.play();
                     }
             }
             else if (v == mNext) {
@@ -113,6 +116,16 @@ public class FramePlayerVideoActivity extends Activity implements
             else if (v == mPrev) {
                 Log.i(TAG, "User clicked Prev");
                 mPlayer.prev();
+            }
+            else if (v == mSpeed) {
+                int sp = Character.getNumericValue(mSpeed.getText().charAt(2));
+                Log.i(TAG, "User clicked Speed = "+mSpeed.getText());
+                sp = sp * 2;
+                if (sp > 10)
+                    sp = 1;
+                Log.i(TAG, "Set Speed = "+sp);
+                mPlayer.setSpeed(sp);
+                mSpeed.setText("1/"+sp);
             }
 
         }
@@ -152,7 +165,7 @@ public class FramePlayerVideoActivity extends Activity implements
                     mPlayer.getVideoHeight(),
                     mPlayer.getVideoRotation());
             try {
-                mPlayer.play(1);
+                mPlayer.play();
                 mPlay.setSelected(true);
 
             }
