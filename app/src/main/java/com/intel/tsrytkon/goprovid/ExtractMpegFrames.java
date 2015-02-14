@@ -40,20 +40,8 @@ import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
 import java.util.concurrent.Semaphore;
 
-//20131122: minor tweaks to saveFrame() I/O
-//20131205: add alpha to EGLConfig (huge glReadPixels speedup); pre-allocate pixel buffers;
-//          log time to run saveFrame()
-//20140123: correct error checks on glGet*Location() and program creation (they don't set error)
-//20140212: eliminate byte swap
 
 /**
- * Extract frames from an MP4 using MediaExtractor, MediaCodec, and GLES.  Put a .mp4 file
- * in "/sdcard/source.mp4" and look for output files named "/sdcard/frame-XX.png".
- * <p>
- * This uses various features first available in Android "Jellybean" 4.1 (API 16).
- * <p>
- * (This was derived from bits and pieces of CTS tests, and is packaged as such, but is not
- * currently part of CTS.)
  */
 public class ExtractMpegFrames {
     private static final String TAG = "ExtractMpegFrames";

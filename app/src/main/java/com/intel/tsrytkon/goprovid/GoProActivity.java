@@ -60,13 +60,16 @@ public class GoProActivity extends FragmentActivity implements LoaderManager.Loa
     @Override
     public void onLoadFinished(Loader<Cursor> loader, Cursor cursor) {
         Log.i(TAG, "onLoadFinished");
-        cursor.moveToFirst();
-        int index = 0;
-        do {
-            Log.i(TAG, cursor.getString(0) + " " + cursor.getString(1)+" " + cursor.getString(3));
-            mPaths.add(index++, cursor.getString(3));
-        } while(cursor.moveToNext());
-        cursor.moveToFirst();
+        if (cursor.getCount() > 0)
+        {
+            cursor.moveToFirst();
+            int index = 0;
+            do {
+                Log.i(TAG, cursor.getString(0) + " " + cursor.getString(1)+" " + cursor.getString(3));
+                mPaths.add(index++, cursor.getString(3));
+            } while(cursor.moveToNext());
+            cursor.moveToFirst();
+        }
         mAdapter.changeCursor(cursor);
     }
 
