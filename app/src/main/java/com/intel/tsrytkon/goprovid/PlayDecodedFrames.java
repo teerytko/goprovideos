@@ -41,7 +41,7 @@ import java.util.concurrent.Semaphore;
  */
 public class PlayDecodedFrames {
     private static final String TAG = "PlayDecodedFrames";
-    private static final boolean VERBOSE = true;           // lots of logging
+    private static final boolean VERBOSE = false;           // lots of logging
 
     // where to find files (note: requires WRITE_EXTERNAL_STORAGE permission)
     private static final File FILES_DIR = Environment.getExternalStorageDirectory();
@@ -58,7 +58,7 @@ public class PlayDecodedFrames {
     long mSeeking = -1;
     ByteBuffer[] mDecoderInputBuffers;
     ByteBuffer[] mDecoderOutputBuffers;
-    ArrayList<Long> mPrevBuffers;
+    long mPrevFrame[] = {0, 0};
     private Surface mSurface = null;
     private MediaFormat mFormat;
     private SurfaceTexture mSurfaceTexture = null;
@@ -66,7 +66,6 @@ public class PlayDecodedFrames {
     public PlayDecodedFrames(String inputFile, Surface surface, ProgressBar progress) {
         mInputFile = inputFile;
         mSurface = surface;
-        mPrevBuffers = new ArrayList<Long>(10);
         mProgress = progress;
         initializeExtractor();
         mWorkerThread = new PlayDecodedFramesThread(this);
@@ -126,14 +125,15 @@ public class PlayDecodedFrames {
     }
 
     public void prev() throws Throwable {
-        Log.d(TAG, "prev: " + mPrevBuffers.size());
-        if (!mWorkerThread.mClock.mRun) {
-            mPrevBuffers.remove(mPrevBuffers.size()-1);
-            long uPrevFrameTime = mPrevBuffers.get(mPrevBuffers.size()-1);
-            mPrevBuffers.remove(mPrevBuffers.size()-1);
-            float prevFrameTime = uPrevFrameTime / 1000;
-            Log.d(TAG, "prevFrameTime: " + uPrevFrameTime + ", " +prevFrameTime);
-            this.seekToPrecise(uPrevFrameTime);
+        if (!mWorkerThread.mClock.mRun && mSeeking == -1) {
+            Log.d(TAG, "Seek to PrevFrame at  " + mPrevFrame[0] +", " + mPrevFrame[1]);
+            // The possible situation where the previous
+            // sync is done on sync frame, so we don't have info about previous frame
+            if (mPrevFrame[0] == 0 && mPrevFrame[1] > 0)
+                mPrevFrame[0] = mPrevFrame[1] - 100;
+            mPrevFrame[1] = 0;
+            this.seekToPrecise(mPrevFrame[0]);
+
         }
     }
 
@@ -272,7 +272,7 @@ public class PlayDecodedFrames {
                     int decoderStatus = decoder.dequeueOutputBuffer(info, TIMEOUT_USEC);
                     if (decoderStatus == MediaCodec.INFO_TRY_AGAIN_LATER) {
                         // no output available yet
-                        Log.i(TAG, "no output from decoder available");
+                        if (VERBOSE) Log.i(TAG, "no output from decoder available");
                     } else if (decoderStatus == MediaCodec.INFO_OUTPUT_BUFFERS_CHANGED) {
                         // not important for us, since we're using Surface
                         if (VERBOSE) Log.i(TAG, "decoder output buffers changed");
@@ -283,7 +283,6 @@ public class PlayDecodedFrames {
                         Log.e(TAG, "unexpected result from decoder.dequeueOutputBuffer: " + decoderStatus);
                     } else { // decoderStatus >= 0
                         ByteBuffer outputBuf = mDecoderOutputBuffers[decoderStatus];
-                        mPrevBuffers.add(info.presentationTimeUs);
                         if (VERBOSE) Log.i(TAG, "surface decoder given buffer " + decoderStatus +
                                 " (time=" + info.presentationTimeUs + ")");
                         if ((info.flags & MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0) {
@@ -292,7 +291,7 @@ public class PlayDecodedFrames {
                         }
                         boolean doRender = (info.size != 0);
 
-                        if (mSeeking > 0)
+                        if (mSeeking != -1)
                             if (info.presentationTimeUs < mSeeking)
                                 doRender = false;
                             else
@@ -300,7 +299,10 @@ public class PlayDecodedFrames {
 
                         if (doRender && mProgress != null)
                             mProgress.setProgress((int) info.presentationTimeUs);
+
                         decoder.releaseOutputBuffer(decoderStatus, doRender);
+                        mPrevFrame[0] = mPrevFrame[1];
+                        mPrevFrame[1] = info.presentationTimeUs;
                     }
                 }
             }
@@ -345,7 +347,7 @@ public class PlayDecodedFrames {
             public void run() {
                 try {
                     while (mRun) {
-                        Log.i(TAG, "Running clock!! "+mExtractThread.sleepTime*mExtractThread.mSpeed);
+                        if (VERBOSE) Log.i(TAG, "Running clock!! "+mExtractThread.sleepTime*mExtractThread.mSpeed);
                         // Make sure that the sleep time is something more than 0
                         // To avoid crazy loops
                         if (mExtractThread.sleepTime>0)
@@ -386,14 +388,14 @@ public class PlayDecodedFrames {
                 long prevTime = 0;
 
                 while (!mDecoder.outputDone && mRun) {
-                    Log.i(TAG, "Main loop");
+                    if (VERBOSE) Log.i(TAG, "Main loop");
                     nextFrame.acquire();
-                    Log.i(TAG, "Main loop - next frame");
+                    if (VERBOSE) Log.i(TAG, "Main loop - next frame");
                     mDecoder.doExtract(mDecoder.extractor,
                             mDecoder.trackIndex,
                             mDecoder.decoder,
                             info);
-                    Log.i(TAG, "Main loop - frame done");
+                    if (VERBOSE) Log.i(TAG, "Main loop - frame done");
                     sleepTime = (info.presentationTimeUs - prevTime) / 1000;
                     prevTime = info.presentationTimeUs;
                 }

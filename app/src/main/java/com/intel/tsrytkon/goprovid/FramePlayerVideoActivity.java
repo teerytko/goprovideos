@@ -24,6 +24,7 @@ public class FramePlayerVideoActivity extends Activity implements
         SurfaceHolder.Callback, View.OnClickListener, View.OnTouchListener,
         TextureView.SurfaceTextureListener {
 
+    private boolean VERBOSE = false;
     private static final String TAG = "FramePlayerVideoActivity";
     private int mVideoWidth;
     private int mVideoHeight;
@@ -84,7 +85,7 @@ public class FramePlayerVideoActivity extends Activity implements
     }
     @Override
     public void onSurfaceTextureUpdated(SurfaceTexture surface) {
-        Log.d(TAG, "SurfaceTexture onSurfaceTextureUpdated");
+        if (VERBOSE) Log.d(TAG, "SurfaceTexture onSurfaceTextureUpdated");
         // ignore
     }
 
