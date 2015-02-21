@@ -17,61 +17,59 @@
 
 package com.intel.tsrytkon.goprovid;
 
+import android.graphics.Bitmap;
 import android.graphics.SurfaceTexture;
 import android.media.MediaCodec;
 import android.media.MediaExtractor;
 import android.media.MediaFormat;
 import android.media.MediaMetadataRetriever;
-import android.media.MediaPlayer;
 import android.os.Environment;
 import android.util.Log;
 import android.view.Surface;
-import android.view.SurfaceView;
 import android.view.TextureView;
 import android.widget.ProgressBar;
 
-import java.io.BufferedOutputStream;
 import java.io.File;
 import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
-import java.nio.FloatBuffer;
+import java.util.ArrayList;
 import java.util.concurrent.Semaphore;
 
 
 /**
  */
-public class ExtractMpegFrames {
-    private static final String TAG = "ExtractMpegFrames";
+public class PlayDecodedFrames {
+    private static final String TAG = "PlayDecodedFrames";
     private static final boolean VERBOSE = true;           // lots of logging
 
     // where to find files (note: requires WRITE_EXTERNAL_STORAGE permission)
     private static final File FILES_DIR = Environment.getExternalStorageDirectory();
     private static final int MAX_FRAMES = 10;       // stop extracting after this many
     private ProgressBar mProgress = null;
-    private ExtractMpegFramesThread mWorkerThread;
+    private PlayDecodedFramesThread mWorkerThread;
     private String mInputFile = "N/A";
     private MediaCodec decoder = null;
     private MediaExtractor extractor = null;
-    private int saveWidth = 640;
-    private int saveHeight = 480;
     private long duration = 0;
     private int trackIndex;
     boolean outputDone = false;
     boolean inputDone = false;
     long mSeeking = -1;
     ByteBuffer[] mDecoderInputBuffers;
+    ByteBuffer[] mDecoderOutputBuffers;
+    ArrayList<Long> mPrevBuffers;
     private Surface mSurface = null;
     private MediaFormat mFormat;
+    private SurfaceTexture mSurfaceTexture = null;
 
-    public ExtractMpegFrames(String inputFile, Surface surface, ProgressBar progress) {
+    public PlayDecodedFrames(String inputFile, Surface surface, ProgressBar progress) {
         mInputFile = inputFile;
         mSurface = surface;
+        mPrevBuffers = new ArrayList<Long>(10);
         mProgress = progress;
         initializeExtractor();
-        mWorkerThread = new ExtractMpegFramesThread(this);
+        mWorkerThread = new PlayDecodedFramesThread(this);
         mWorkerThread.start();
     }
 
@@ -99,7 +97,8 @@ public class ExtractMpegFrames {
     }
 
     public void next() throws Throwable {
-        mWorkerThread.nextFrame.release();
+        if (!mWorkerThread.mClock.mRun)
+            mWorkerThread.nextFrame.release();
     }
 
     public void seekTo(float pos) {
@@ -109,12 +108,33 @@ public class ExtractMpegFrames {
                 Log.i(TAG, "seekTo "+mSeeking);
                 extractor.seekTo(mSeeking, MediaExtractor.SEEK_TO_PREVIOUS_SYNC);
                 decoder.flush();
-                mWorkerThread.nextFrame.release(10);
+                mWorkerThread.nextFrame.release(1);
             }
         }
     }
+
+    public void seekToPrecise(long seekPos) {
+        synchronized (this) {
+            if (mSeeking == -1) {
+                mSeeking = seekPos;
+                Log.i(TAG, "seekTo "+mSeeking);
+                extractor.seekTo(mSeeking, MediaExtractor.SEEK_TO_PREVIOUS_SYNC);
+                decoder.flush();
+                mWorkerThread.nextFrame.release(1);
+            }
+        }
+    }
+
     public void prev() throws Throwable {
-        //mWrapper.pause();
+        Log.d(TAG, "prev: " + mPrevBuffers.size());
+        if (!mWorkerThread.mClock.mRun) {
+            mPrevBuffers.remove(mPrevBuffers.size()-1);
+            long uPrevFrameTime = mPrevBuffers.get(mPrevBuffers.size()-1);
+            mPrevBuffers.remove(mPrevBuffers.size()-1);
+            float prevFrameTime = uPrevFrameTime / 1000;
+            Log.d(TAG, "prevFrameTime: " + uPrevFrameTime + ", " +prevFrameTime);
+            this.seekToPrecise(uPrevFrameTime);
+        }
     }
 
     public int getVideoWidth() {
@@ -193,6 +213,7 @@ public class ExtractMpegFrames {
             decoder.configure(mFormat, mSurface, null, 0);
             decoder.start();
             mDecoderInputBuffers = decoder.getInputBuffers();
+            mDecoderOutputBuffers = decoder.getOutputBuffers();
 
         } catch (Exception e) {
             e.printStackTrace();
@@ -211,77 +232,85 @@ public class ExtractMpegFrames {
         final int TIMEOUT_USEC = 10000;
         int inputChunk = 0;
         int decodeCount = 0;
-        synchronized (this) {
-            if (VERBOSE) Log.d(TAG, "loop");
-            // Feed more data to the decoder.
-            if (!inputDone) {
-                int inputBufIndex = decoder.dequeueInputBuffer(TIMEOUT_USEC);
-                if (inputBufIndex >= 0) {
-                    ByteBuffer inputBuf = mDecoderInputBuffers[inputBufIndex];
-                    // Read the sample data into the ByteBuffer.  This neither respects nor
-                    // updates inputBuf's position, limit, etc.
-                    int chunkSize = extractor.readSampleData(inputBuf, 0);
-                    if (chunkSize < 0) {
-                        // End of stream -- send empty frame with EOS flag set.
-                        decoder.queueInputBuffer(inputBufIndex, 0, 0, 0L,
-                                MediaCodec.BUFFER_FLAG_END_OF_STREAM);
-                        inputDone = true;
-                        if (VERBOSE) Log.d(TAG, "sent input EOS");
+        do {
+            synchronized (this) {
+                if (VERBOSE) Log.d(TAG, "loop mSeeking="+mSeeking);
+                // Feed more data to the decoder.
+                if (!inputDone) {
+                    int inputBufIndex = decoder.dequeueInputBuffer(TIMEOUT_USEC);
+                    if (inputBufIndex >= 0) {
+                        ByteBuffer inputBuf = mDecoderInputBuffers[inputBufIndex];
+                        // Read the sample data into the ByteBuffer.  This neither respects nor
+                        // updates inputBuf's position, limit, etc.
+                        int chunkSize = extractor.readSampleData(inputBuf, 0);
+                        if (chunkSize < 0) {
+                            // End of stream -- send empty frame with EOS flag set.
+                            decoder.queueInputBuffer(inputBufIndex, 0, 0, 0L,
+                                    MediaCodec.BUFFER_FLAG_END_OF_STREAM);
+                            inputDone = true;
+                            if (VERBOSE) Log.d(TAG, "sent input EOS");
+                        } else {
+                            if (extractor.getSampleTrackIndex() != trackIndex) {
+                                Log.w(TAG, "WEIRD: got sample from track " +
+                                        extractor.getSampleTrackIndex() + ", expected " + trackIndex);
+                            }
+                            long presentationTimeUs = extractor.getSampleTime();
+                            decoder.queueInputBuffer(inputBufIndex, 0, chunkSize,
+                                    presentationTimeUs, 0 /*flags*/);
+                            if (VERBOSE) {
+                                Log.d(TAG, "submitted frame " + inputChunk + " to dec, size=" +
+                                        chunkSize + " sampleTime: " + presentationTimeUs);
+                            }
+                            inputChunk++;
+                            extractor.advance();
+                        }
                     } else {
-                        if (extractor.getSampleTrackIndex() != trackIndex) {
-                            Log.w(TAG, "WEIRD: got sample from track " +
-                                    extractor.getSampleTrackIndex() + ", expected " + trackIndex);
-                        }
-                        long presentationTimeUs = extractor.getSampleTime();
-                        decoder.queueInputBuffer(inputBufIndex, 0, chunkSize,
-                                presentationTimeUs, 0 /*flags*/);
-                        if (VERBOSE) {
-                            Log.d(TAG, "submitted frame " + inputChunk + " to dec, size=" +
-                                    chunkSize + " sampleTime: "+presentationTimeUs);
-                        }
-                        inputChunk++;
-                        extractor.advance();
+                        if (VERBOSE) Log.d(TAG, "input buffer not available");
                     }
-                } else {
-                    if (VERBOSE) Log.d(TAG, "input buffer not available");
                 }
-            }
-            if (!outputDone) {
-                int decoderStatus = decoder.dequeueOutputBuffer(info, TIMEOUT_USEC);
-                if (decoderStatus == MediaCodec.INFO_TRY_AGAIN_LATER) {
-                    // no output available yet
-                    Log.i(TAG, "no output from decoder available");
-                } else if (decoderStatus == MediaCodec.INFO_OUTPUT_BUFFERS_CHANGED) {
-                    // not important for us, since we're using Surface
-                    if (VERBOSE) Log.i(TAG, "decoder output buffers changed");
-                } else if (decoderStatus == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
-                    MediaFormat newFormat = decoder.getOutputFormat();
-                    if (VERBOSE) Log.i(TAG, "decoder output format changed: " + newFormat);
-                } else if (decoderStatus < 0) {
-                    Log.e(TAG, "unexpected result from decoder.dequeueOutputBuffer: " + decoderStatus);
-                } else { // decoderStatus >= 0
-                    if (VERBOSE) Log.i(TAG, "surface decoder given buffer " + decoderStatus +
-                            " (time=" + info.presentationTimeUs + ")");
-                    if ((info.flags & MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0) {
-                        if (VERBOSE) Log.d(TAG, "output EOS");
-                        outputDone = true;
-                    }
-                    if (mSeeking > 0)
-                        mSeeking = -1;
+                if (!outputDone) {
+                    int decoderStatus = decoder.dequeueOutputBuffer(info, TIMEOUT_USEC);
+                    if (decoderStatus == MediaCodec.INFO_TRY_AGAIN_LATER) {
+                        // no output available yet
+                        Log.i(TAG, "no output from decoder available");
+                    } else if (decoderStatus == MediaCodec.INFO_OUTPUT_BUFFERS_CHANGED) {
+                        // not important for us, since we're using Surface
+                        if (VERBOSE) Log.i(TAG, "decoder output buffers changed");
+                    } else if (decoderStatus == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
+                        MediaFormat newFormat = decoder.getOutputFormat();
+                        if (VERBOSE) Log.i(TAG, "decoder output format changed: " + newFormat);
+                    } else if (decoderStatus < 0) {
+                        Log.e(TAG, "unexpected result from decoder.dequeueOutputBuffer: " + decoderStatus);
+                    } else { // decoderStatus >= 0
+                        ByteBuffer outputBuf = mDecoderOutputBuffers[decoderStatus];
+                        mPrevBuffers.add(info.presentationTimeUs);
+                        if (VERBOSE) Log.i(TAG, "surface decoder given buffer " + decoderStatus +
+                                " (time=" + info.presentationTimeUs + ")");
+                        if ((info.flags & MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0) {
+                            if (VERBOSE) Log.d(TAG, "output EOS");
+                            outputDone = true;
+                        }
+                        boolean doRender = (info.size != 0);
 
-                    boolean doRender = (info.size != 0);
-                    if (mProgress != null)
-                        mProgress.setProgress((int)info.presentationTimeUs);
-                    decoder.releaseOutputBuffer(decoderStatus, doRender);
+                        if (mSeeking > 0)
+                            if (info.presentationTimeUs < mSeeking)
+                                doRender = false;
+                            else
+                                mSeeking = -1;
+
+                        if (doRender && mProgress != null)
+                            mProgress.setProgress((int) info.presentationTimeUs);
+                        decoder.releaseOutputBuffer(decoderStatus, doRender);
+                    }
                 }
             }
-        }
+        } while (mSeeking > 0);
    }
     /**
      */
-    private static class ExtractMpegFramesThread implements Runnable {
+    private static class PlayDecodedFramesThread implements Runnable {
         private Throwable mThrowable;
-        private ExtractMpegFrames mDecoder;
+        private PlayDecodedFrames mDecoder;
         public float mSpeed = 1;
         public final Semaphore nextFrame = new Semaphore(1, true);
         public long sleepTime = 100;
@@ -290,17 +319,17 @@ public class ExtractMpegFrames {
         private boolean mRun = true;
 
         private static class ExtractClock implements Runnable {
-            ExtractMpegFramesThread mExtractThread;
+            PlayDecodedFramesThread mExtractThread;
             private boolean mRun = true;
             private Thread mThread;
 
-            private ExtractClock(ExtractMpegFramesThread extractThread) {
+            private ExtractClock(PlayDecodedFramesThread extractThread) {
                 mExtractThread = extractThread;
             }
 
             public void start() {
                 mRun = true;
-                mThread = new Thread(this, "codec clock");
+                mThread = new Thread(this, "extract clock");
                 mThread.start();
             }
             public void stop() {
@@ -331,7 +360,7 @@ public class ExtractMpegFrames {
             }
         }
 
-        private ExtractMpegFramesThread(ExtractMpegFrames decoder) {
+        private PlayDecodedFramesThread(PlayDecodedFrames decoder) {
             mDecoder = decoder;
             mClock = new ExtractClock(this);
         }

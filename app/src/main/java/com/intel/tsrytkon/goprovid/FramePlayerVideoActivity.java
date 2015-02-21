@@ -4,10 +4,10 @@ package com.intel.tsrytkon.goprovid;
 
 import android.app.Activity;
 import android.content.Context;
+import android.graphics.Bitmap;
 import android.graphics.Matrix;
 import android.graphics.SurfaceTexture;
 import android.os.Bundle;
-import android.os.Handler;
 import android.util.Log;
 import android.view.Display;
 import android.view.MotionEvent;
@@ -21,23 +21,22 @@ import android.widget.ImageButton;
 import android.widget.ProgressBar;
 
 public class FramePlayerVideoActivity extends Activity implements
-        SurfaceHolder.Callback, View.OnClickListener, View.OnTouchListener, TextureView.SurfaceTextureListener {
+        SurfaceHolder.Callback, View.OnClickListener, View.OnTouchListener,
+        TextureView.SurfaceTextureListener {
 
     private static final String TAG = "FramePlayerVideoActivity";
     private int mVideoWidth;
     private int mVideoHeight;
     private TextureView mPreview;
-    private SurfaceHolder holder;
     private ProgressBar mProgress;
     private ImageButton mPlay;
     private ImageButton mNext;
     private ImageButton mPrev;
     private Button mSpeed;
-    private Handler handler = new Handler();
-    private String path;
     private Bundle extras;
     private static final String MEDIA = "media";
-    ExtractMpegFrames mPlayer;
+    private PlayDecodedFrames mPlayer;
+    private SurfaceTexture mSurfaceTexture = null;
 
     /**
      *
@@ -59,12 +58,6 @@ public class FramePlayerVideoActivity extends Activity implements
         mPrev.setOnClickListener(this);
         mSpeed = (Button) findViewById(R.id.action_speed);
         mSpeed.setOnClickListener(this);
-
-
-        //holder = mPreview.getHolder();
-        //holder.addCallback(this);
-        //mPreview.setRotation(45);
-        //holder.setType(SurfaceHolder.SURFACE_TYPE_PUSH_BUFFERS);
         extras = getIntent().getExtras();
     }
 
@@ -158,8 +151,10 @@ public class FramePlayerVideoActivity extends Activity implements
         try {
             Log.i(TAG, "playVideo: "+path);
             mProgress.setIndeterminate(false);
-            Surface s = new Surface(mPreview.getSurfaceTexture());
-            mPlayer = new ExtractMpegFrames(path, s, mProgress);
+            mSurfaceTexture = mPreview.getSurfaceTexture();
+            //mSurfaceTexture.setOnFrameAvailableListener(this);
+            Surface s = new Surface(mSurfaceTexture);
+            mPlayer = new PlayDecodedFrames(path, s, mProgress);
             adjustAspectRatio(
                     mPlayer.getVideoWidth(),
                     mPlayer.getVideoHeight(),
@@ -259,7 +254,7 @@ public class FramePlayerVideoActivity extends Activity implements
 
     private void startVideoPlayback() {
         Log.v(TAG, "startVideoPlayback");
-        holder.setFixedSize(mVideoWidth, mVideoHeight);
+        //holder.setFixedSize(mVideoWidth, mVideoHeight);
     }
 
     //mediacontroller implemented methods
