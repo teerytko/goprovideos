@@ -6,9 +6,13 @@
 
 package com.intel.tsrytkon.goprovid;
 
+import android.app.Activity;
+import android.app.AlertDialog;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.database.Cursor;
+import android.net.Uri;
 import android.os.Bundle;
 import android.provider.MediaStore;
 import android.support.v4.app.FragmentActivity;
@@ -16,16 +20,20 @@ import android.support.v4.content.CursorLoader;
 import android.support.v4.content.Loader;
 import android.support.v4.widget.SimpleCursorAdapter;
 import android.util.Log;
+import android.view.ContextMenu;
 import android.view.Menu;
+import android.view.MenuInflater;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.AdapterView;
+import android.widget.EditText;
 import android.widget.ListView;
 import android.widget.TextView;
 import android.support.v4.app.LoaderManager;
 import android.widget.Toast;
 
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -98,11 +106,9 @@ public class GoProActivity extends FragmentActivity implements LoaderManager.Loa
                 fromColumns, toViews, 0);
 
         mListView.setAdapter(mAdapter);
-        mListView.setOnItemClickListener(new AdapterView.OnItemClickListener()
-        {
+        mListView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
             @Override
-            public void onItemClick(AdapterView<?> arg0, View arg1,int position, long id)
-            {
+            public void onItemClick(AdapterView<?> arg0, View arg1, int position, long id) {
                 String videopath = (String) mPaths.get(position);
                 Toast.makeText(GoProActivity.this, videopath, Toast.LENGTH_SHORT).show();
                 Intent intent = new Intent(GoProActivity.this,
@@ -112,6 +118,7 @@ public class GoProActivity extends FragmentActivity implements LoaderManager.Loa
             }
         });
         getSupportLoaderManager().initLoader(1, null, this);
+        registerForContextMenu(mListView);
     }
 
     @Override
@@ -146,4 +153,71 @@ public class GoProActivity extends FragmentActivity implements LoaderManager.Loa
         return super.onOptionsItemSelected(item);
     }
 
+    /**
+     * Context menu for video list
+     */
+    @Override
+    public void onCreateContextMenu(ContextMenu menu, View v, ContextMenu.ContextMenuInfo menuInfo) {
+        super.onCreateContextMenu(menu, v, menuInfo);
+        if (v.getId()==R.id.listView) {
+            MenuInflater inflater = getMenuInflater();
+            inflater.inflate(R.menu.video_context, menu);
+        }
+    }
+
+    @Override
+    public boolean onContextItemSelected(MenuItem item) {
+        AdapterView.AdapterContextMenuInfo info = (AdapterView.AdapterContextMenuInfo) item.getMenuInfo();
+        String videopath = (String) mPaths.get(info.position);
+        final File vf = new File(videopath);
+        switch(item.getItemId()) {
+            case R.id.add:
+                Intent takeVideoIntent = new Intent(MediaStore.ACTION_VIDEO_CAPTURE);
+                if (takeVideoIntent.resolveActivity(getPackageManager()) != null) {
+                    startActivityForResult(takeVideoIntent, REQUEST_VIDEO_CAPTURE);
+                }
+                return true;
+            case R.id.rename:
+                // edit stuff here
+                Log.d(TAG, "Rename file"+videopath);
+                AlertDialog.Builder alert = new AlertDialog.Builder(this);
+                alert.setTitle("Rename");
+
+                final EditText input = new EditText(this);
+                input.setText(vf.getName());
+                alert.setView(input);
+
+                alert.setPositiveButton("OK", new DialogInterface.OnClickListener() {
+                    public void onClick(DialogInterface dialog, int whichButton) {
+                        String newName = input.getEditableText().toString();
+                        Log.d(TAG, "Rename to "+newName);
+                        File nf = new File(vf.getPath(), newName);
+                        vf.renameTo(nf);
+                        sendBroadcast(new Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE, Uri.fromFile(vf)));
+                        sendBroadcast(new Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE, Uri.fromFile(nf)));
+
+                        //update your listview here
+                    }
+                });
+
+                alert.setNegativeButton("CANCEL",
+                        new DialogInterface.OnClickListener() {
+                            public void onClick(DialogInterface dialog, int whichButton) {
+                                dialog.cancel();
+                            }
+                        });
+                AlertDialog alertDialog = alert.create();
+                alertDialog.show();
+                return false;
+                //return true;
+            case R.id.delete:
+                // remove stuff here
+                Log.d(TAG, "Delete file " + vf.getAbsoluteFile());
+                boolean d = vf.getAbsoluteFile().delete();
+                sendBroadcast(new Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE, Uri.fromFile(vf)));
+                return d;
+            default:
+                return super.onContextItemSelected(item);
+        }
+    }
 }

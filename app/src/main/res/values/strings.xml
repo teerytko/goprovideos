@@ -13,5 +13,9 @@
     <string name="title_activity_video_playback_full">VideoPlaybackFull</string>
     <string name="dummy_button">Dummy Button</string>
     <string name="dummy_content">DUMMY\nCONTENT</string>
+    <string name="menu_add">Add</string>
+    <string name="menu_edit">Edit</string>
+    <string name="menu_rename">Rename</string>
+    <string name="menu_delete">Delete</string>
 
 </resources>
