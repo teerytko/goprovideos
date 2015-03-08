@@ -8,8 +8,9 @@
     <string name="action_record">Record</string>
     <string name="action_play_file">Play Local file</string>
     <string name="action_play_live">Play Live stream</string>
-    <string name="action_connect">Connect</string>
+    <string name="action_connect">GoPro Connect</string>
     <string name="title_activity_play_back">PlayBackActivity</string>
+    <string name="title_activity_gopro_live">GoPro Live</string>
     <string name="title_activity_video_playback_full">VideoPlaybackFull</string>
     <string name="dummy_button">Dummy Button</string>
     <string name="dummy_content">DUMMY\nCONTENT</string>

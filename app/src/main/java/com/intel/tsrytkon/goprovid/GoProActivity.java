@@ -45,10 +45,7 @@ public class GoProActivity extends FragmentActivity implements LoaderManager.Loa
     private static final String MEDIA = "media";
     private ListView mListView;
     private ArrayList mPaths = new ArrayList();
-    private static String STREAM_VIDEO = "https://www.youtube.com/watch?v=z0JebT4kIPU";
-    private static String FILE_VIDEO = "/storage/sdcard0/DCIM/100ANDRO/VID_0010.mp4";
-    //private static String FILE_VIDEO = "storage/extSdCard/DCIM/Camera/20141224_135804.mp4";
-    private static String GOPRO_VIDEO = "http://10.5.5.9:8080/live/amba.m3u8";
+    private static String GOPRO_LIVE = "http://10.5.5.9:8080/live/amba.m3u8";
     private static String TAG = "GOPRO";
     // This is the Adapter being used to display the list's data
     private SimpleCursorAdapter mAdapter;
@@ -139,8 +136,8 @@ public class GoProActivity extends FragmentActivity implements LoaderManager.Loa
         }
         else if (id == R.id.action_connect) {
             Intent intent = new Intent(GoProActivity.this,
-                    MediaPlayerVideoActivity.class);
-            intent.putExtra(MEDIA, FILE_VIDEO);
+                    GoProLiveActivity.class);
+            intent.putExtra(MEDIA, GOPRO_LIVE);
             startActivity(intent);
         }
         else if (id == R.id.action_record) {
