@@ -1,6 +1,6 @@
-package com.intel.tsrytkon.goprovid;
+package com.intel.tsrytkon.goprovideos;
 
-import com.intel.tsrytkon.goprovid.util.SystemUiHider;
+import com.intel.tsrytkon.goprovideos.util.SystemUiHider;
 
 import android.annotation.TargetApi;
 import android.app.Activity;
@@ -50,9 +50,9 @@ public class VideoPlaybackFull extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        setContentView(R.layout.activity_video_playback_full);
+        setContentView(com.intel.tsrytkon.goprovideos.R.layout.activity_video_playback_full);
 
-        final View contentView = findViewById(R.id.fullscreen_content);
+        final View contentView = findViewById(com.intel.tsrytkon.goprovideos.R.id.fullscreen_content);
 
         // Set up an instance of SystemUiHider to control the system UI for
         // this activity.

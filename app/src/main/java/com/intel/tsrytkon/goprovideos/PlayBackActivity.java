@@ -1,4 +1,4 @@
-package com.intel.tsrytkon.goprovid;
+package com.intel.tsrytkon.goprovideos;
 
 import android.app.Activity;
 import android.os.Bundle;
@@ -11,14 +11,14 @@ public class PlayBackActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_play_back);
+        setContentView(com.intel.tsrytkon.goprovideos.R.layout.activity_play_back);
     }
 
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
         // Inflate the menu; this adds items to the action bar if it is present.
-        getMenuInflater().inflate(R.menu.play_back, menu);
+        getMenuInflater().inflate(com.intel.tsrytkon.goprovideos.R.menu.play_back, menu);
         return true;
     }
 
@@ -28,7 +28,7 @@ public class PlayBackActivity extends Activity {
         // automatically handle clicks on the Home/Up button, so long
         // as you specify a parent activity in AndroidManifest.xml.
         int id = item.getItemId();
-        if (id == R.id.action_settings) {
+        if (id == com.intel.tsrytkon.goprovideos.R.id.action_settings) {
             return true;
         }
         return super.onOptionsItemSelected(item);

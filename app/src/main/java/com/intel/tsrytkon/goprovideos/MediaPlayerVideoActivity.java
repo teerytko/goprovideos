@@ -1,9 +1,8 @@
 
 
-package com.intel.tsrytkon.goprovid;
+package com.intel.tsrytkon.goprovideos;
 
 import android.app.Activity;
-import android.content.Context;
 import android.media.AudioManager;
 import android.media.MediaPlayer;
 import android.net.Uri;
@@ -12,12 +11,7 @@ import android.os.Handler;
 import android.util.Log;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
-import android.view.View;
-import android.widget.MediaController;
 import android.view.MotionEvent;
-
-import com.intel.tsrytkon.goprovid.CustomMediaController;
-import com.intel.tsrytkon.goprovid.R;
 
 import java.net.URLEncoder;
 

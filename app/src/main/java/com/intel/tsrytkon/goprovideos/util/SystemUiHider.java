@@ -1,4 +1,4 @@
-package com.intel.tsrytkon.goprovid.util;
+package com.intel.tsrytkon.goprovideos.util;
 
 import android.app.Activity;
 import android.os.Build;

@@ -1,10 +1,9 @@
 
 
-package com.intel.tsrytkon.goprovid;
+package com.intel.tsrytkon.goprovideos;
 
 import android.app.Activity;
 import android.content.Context;
-import android.graphics.Bitmap;
 import android.graphics.Matrix;
 import android.graphics.SurfaceTexture;
 import android.os.Bundle;
@@ -46,18 +45,18 @@ public class FramePlayerVideoActivity extends Activity implements
     @Override
     public void onCreate(Bundle icicle) {
         super.onCreate(icicle);
-        setContentView(R.layout.activity_video_playback_full);
-        mPreview = (TextureView) findViewById(R.id.fullscreen_content);
+        setContentView(com.intel.tsrytkon.goprovideos.R.layout.activity_video_playback_full);
+        mPreview = (TextureView) findViewById(com.intel.tsrytkon.goprovideos.R.id.fullscreen_content);
         mPreview.setSurfaceTextureListener(this);
-        mProgress = (ProgressBar) findViewById(R.id.progress_bar);
+        mProgress = (ProgressBar) findViewById(com.intel.tsrytkon.goprovideos.R.id.progress_bar);
         mProgress.setOnTouchListener(this);
-        mPlay = (ImageButton) findViewById(R.id.action_play);
+        mPlay = (ImageButton) findViewById(com.intel.tsrytkon.goprovideos.R.id.action_play);
         mPlay.setOnClickListener(this);
-        mNext = (ImageButton) findViewById(R.id.action_next);
+        mNext = (ImageButton) findViewById(com.intel.tsrytkon.goprovideos.R.id.action_next);
         mNext.setOnClickListener(this);
-        mPrev = (ImageButton) findViewById(R.id.action_prev);
+        mPrev = (ImageButton) findViewById(com.intel.tsrytkon.goprovideos.R.id.action_prev);
         mPrev.setOnClickListener(this);
-        mSpeed = (Button) findViewById(R.id.action_speed);
+        mSpeed = (Button) findViewById(com.intel.tsrytkon.goprovideos.R.id.action_speed);
         mSpeed.setOnClickListener(this);
         extras = getIntent().getExtras();
     }

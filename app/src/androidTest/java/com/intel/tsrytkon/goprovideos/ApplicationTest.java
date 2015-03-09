@@ -1,4 +1,4 @@
-package com.intel.tsrytkon.goprovid;
+package com.intel.tsrytkon.goprovideos;
 
 import android.app.Application;
 import android.test.ApplicationTestCase;

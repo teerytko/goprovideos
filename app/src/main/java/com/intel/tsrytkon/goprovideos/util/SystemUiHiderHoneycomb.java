@@ -1,4 +1,4 @@
-package com.intel.tsrytkon.goprovid.util;
+package com.intel.tsrytkon.goprovideos.util;
 
 import android.annotation.TargetApi;
 import android.app.Activity;

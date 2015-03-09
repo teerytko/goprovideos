@@ -15,9 +15,8 @@
  */
 
 
-package com.intel.tsrytkon.goprovid;
+package com.intel.tsrytkon.goprovideos;
 
-import android.graphics.Bitmap;
 import android.graphics.SurfaceTexture;
 import android.media.MediaCodec;
 import android.media.MediaExtractor;
@@ -26,14 +25,12 @@ import android.media.MediaMetadataRetriever;
 import android.os.Environment;
 import android.util.Log;
 import android.view.Surface;
-import android.view.TextureView;
 import android.widget.ProgressBar;
 
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
 import java.util.concurrent.Semaphore;
 
 

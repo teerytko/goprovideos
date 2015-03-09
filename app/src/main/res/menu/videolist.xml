@@ -1,6 +1,6 @@
 <menu xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
-    tools:context=".GoProActivity" >
+    tools:context=".VideoListActivity" >
     <item android:id="@+id/action_record"
         android:title="@string/action_record">
     </item>

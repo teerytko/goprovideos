@@ -1,17 +1,13 @@
-package com.intel.tsrytkon.goprovid;
+package com.intel.tsrytkon.goprovideos;
 
 import android.content.Context;
 import android.os.Build;
 import android.view.Gravity;
-import android.view.LayoutInflater;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.FrameLayout;
-import android.widget.ImageButton;
 import android.widget.MediaController;
-
-import com.intel.tsrytkon.goprovid.R;
 
 import java.lang.reflect.Field;
 
