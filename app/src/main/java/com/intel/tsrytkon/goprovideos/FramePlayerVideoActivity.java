@@ -178,31 +178,22 @@ public class FramePlayerVideoActivity extends Activity implements
         boolean reverse = false;
         double aspectRatio = (double) videoHeight / videoWidth;
         if (rotation == 90 || rotation == 270) {
-            reverse = true;
+            aspectRatio =(double) videoWidth / videoHeight;
         }
 
         int newWidth, newHeight;
-        if (viewHeight > (int) (viewWidth * aspectRatio)) {
+        Log.v(TAG, "viewHeight="+viewHeight+" viewWidth="+viewWidth);
+        if (viewHeight > (int) (viewWidth)) {
             // limited by narrow width; restrict height
-            if (reverse) {
-                newWidth = viewHeight;
-                newHeight = (int) (viewHeight * aspectRatio);
-            }
-            else {
-                newWidth = viewWidth;
-                newHeight = (int) (viewWidth * aspectRatio);
-            }
+            Log.v(TAG, "limited by narrow width; restrict height");
+            newWidth = viewWidth;
+            newHeight = (int) (viewWidth * aspectRatio);
 
         } else {
             // limited by short height; restrict width
-            if (reverse) {
-                newWidth = viewHeight;
-                newHeight = (int) (viewHeight * aspectRatio);
-            }
-            else {
-                newHeight = viewHeight;
-                newWidth = (int) (viewHeight / aspectRatio);
-            }
+            Log.v(TAG, "limited by short height; restrict width");
+            newHeight = viewHeight;
+            newWidth = (int) (viewHeight / aspectRatio);
         }
         int xoff = (viewWidth - newWidth) / 2;
         int yoff = (viewHeight - newHeight) / 2;
@@ -210,12 +201,12 @@ public class FramePlayerVideoActivity extends Activity implements
                 " aspect=" + aspectRatio +
                 " view=" + viewWidth + "x" + viewHeight +
                 " newView=" + newWidth + "x" + newHeight +
-                " off=" + xoff + "," + yoff);
+                " off=" + xoff + "," + yoff +
+                " rotation="+rotation);
 
         Matrix txform = new Matrix();
         mPreview.getTransform(txform);
         txform.setScale((float) newWidth / viewWidth, (float) newHeight / viewHeight);
-        txform.postRotate(rotation, newWidth / 2, newHeight / 2);          // just for fun
         txform.postTranslate(xoff, yoff);
         mPreview.setTransform(txform);
     }
