@@ -23,6 +23,8 @@ public class MediaPlayerVideoActivity extends Activity implements
     private static final String TAG = "MediaPlayerDemo";
     private int mVideoWidth;
     private int mVideoHeight;
+    private boolean mIsVideoSizeKnown = false;
+    private boolean mIsVideoReadyToBePlayed = false;
     private MediaPlayer mMediaPlayer;
     private SurfaceView mPreview;
     private SurfaceHolder holder;
@@ -36,8 +38,6 @@ public class MediaPlayerVideoActivity extends Activity implements
     private static final int RESOURCES_AUDIO = 3;
     private static final int LOCAL_VIDEO = 4;
     private static final int STREAM_VIDEO = 5;
-    private boolean mIsVideoSizeKnown = false;
-    private boolean mIsVideoReadyToBePlayed = false;
 
     /**
      *

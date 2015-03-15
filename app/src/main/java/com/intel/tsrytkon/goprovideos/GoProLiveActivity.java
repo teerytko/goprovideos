@@ -8,18 +8,26 @@ import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.graphics.SurfaceTexture;
+import android.media.AudioManager;
+import android.media.MediaPlayer;
+import android.net.Uri;
 import android.net.wifi.ScanResult;
 import android.net.wifi.WifiConfiguration;
+import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
 import android.os.Bundle;
+import android.text.format.Formatter;
 import android.util.Log;
 import android.view.LayoutInflater;
+import android.view.SurfaceHolder;
+import android.view.SurfaceView;
 import android.view.TextureView;
 import android.view.View;
 import android.widget.EditText;
 import android.widget.ImageButton;
 import android.widget.ListView;
 
+import java.net.URLEncoder;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -27,11 +35,16 @@ import java.util.List;
  * Created by tsrytkon on 3/8/15.
  */
 public class GoProLiveActivity extends Activity implements
-View.OnClickListener, TextureView.SurfaceTextureListener, DialogInterface.OnClickListener {
+View.OnClickListener, DialogInterface.OnClickListener,
+MediaPlayer.OnBufferingUpdateListener, MediaPlayer.OnCompletionListener,
+MediaPlayer.OnPreparedListener, MediaPlayer.OnErrorListener,
+MediaPlayer.OnVideoSizeChangedListener, SurfaceHolder.Callback {
 
     private boolean VERBOSE = false;
     private static final String TAG = "GoProLiveActivity";
-    private TextureView mPreview;
+    private SurfaceView mPreview;
+    private SurfaceHolder holder;
+
     private ImageButton mRecord;
     private Bundle extras;
     private WifiManager mWifiManager;
@@ -41,6 +54,12 @@ View.OnClickListener, TextureView.SurfaceTextureListener, DialogInterface.OnClic
     ScanResult mSelected = null;
     AlertDialog mSelectWifiDlg = null;
     AlertDialog mWifiPasswordDlg = null;
+    MediaPlayer mMediaPlayer = null;
+    private int mVideoWidth;
+    private int mVideoHeight;
+    private boolean mIsVideoSizeKnown = false;
+    private boolean mIsVideoReadyToBePlayed = false;
+
     /**
      *
      * Called when the activity is first created.
@@ -48,18 +67,26 @@ View.OnClickListener, TextureView.SurfaceTextureListener, DialogInterface.OnClic
     @Override
     public void onCreate(Bundle icicle) {
         super.onCreate(icicle);
-        setContentView(com.intel.tsrytkon.goprovideos.R.layout.activity_video_playback_full);
-        mPreview = (TextureView) findViewById(com.intel.tsrytkon.goprovideos.R.id.fullscreen_content);
-        mPreview.setSurfaceTextureListener(this);
-        mRecord = (ImageButton) findViewById(com.intel.tsrytkon.goprovideos.R.id.action_play);
-        mPreview.setOnClickListener(this);
+        setContentView(R.layout.activity_video_preview_full);
+        mPreview = (SurfaceView) findViewById(com.intel.tsrytkon.goprovideos.R.id.fullscreen_content);
+        holder = mPreview.getHolder();
+        holder.addCallback(this);
+
         extras = getIntent().getExtras();
-        this.scanWifi(getApplicationContext());
+        Context c = getApplicationContext();
+        mWifiManager = (WifiManager) c.getSystemService(Context.WIFI_SERVICE);
+        WifiInfo wi = mWifiManager.getConnectionInfo();
+        String ipAddress = Formatter.formatIpAddress(wi.getIpAddress());
+        Log.d(TAG, "Current wifi "+ipAddress);
+        if (ipAddress.compareTo("10.5.5.109") == 0) {
+            Log.d(TAG, "Connected to GoPro");
+        }
+        else
+            this.scanWifi(c);
     }
 
 
     public void scanWifi(Context context) {
-        mWifiManager = (WifiManager) context.getSystemService(Context.WIFI_SERVICE);
         Log.d(TAG, "Got wifi manager "+mWifiManager);
         Log.d(TAG, "Wifi state "+mWifiManager.getWifiState());
         WifiScanReceiver wifiReceiver = new WifiScanReceiver();
@@ -105,6 +132,7 @@ View.OnClickListener, TextureView.SurfaceTextureListener, DialogInterface.OnClic
                 //mWifiManager.disconnect();
                 Log.d(TAG, "Connecting to " + netId);
                 mWifiManager.enableNetwork(netId, true);
+                playVideo("http://10.5.5.9:8080/live/amba.m3u8");
             }
         }
         else {
@@ -143,7 +171,9 @@ View.OnClickListener, TextureView.SurfaceTextureListener, DialogInterface.OnClic
             String SSID = mWifiConfig.SSID.replaceAll("\"$|^\"", "");
             if (SSID.compareTo(selected.SSID) == 0){
                 Log.i(TAG, "Existing network config found " + selected.BSSID);
-                return mWifiManager.enableNetwork(mWifiConfig.networkId, true);
+                mWifiManager.enableNetwork(mWifiConfig.networkId, true);
+                playVideo("http://10.5.5.9:8080/live/amba.m3u8");
+                return true;
             }
         }
         mSelected = selected;
@@ -170,32 +200,121 @@ View.OnClickListener, TextureView.SurfaceTextureListener, DialogInterface.OnClic
         return true;
     }
 
-    @Override
-    public void onSurfaceTextureAvailable(SurfaceTexture st, int width, int height) {
-        // There's a short delay between the start of the activity and the initialization
-        // of the SurfaceTexture that backs the TextureView.  We don't want to try to
-        // send a video stream to the TextureView before it has initialized, so we disable
-        // the "play" button until this callback fires.
-        Log.d(TAG, "SurfaceTexture ready (" + width + "x" + height + ")");
+    public void surfaceChanged(SurfaceHolder surfaceholder, int i, int j, int k) {
+        Log.d(TAG, "surfaceChanged called");
+
+    }
+
+    public void surfaceDestroyed(SurfaceHolder surfaceholder) {
+        Log.d(TAG, "surfaceDestroyed called");
+    }
+
+    public void surfaceCreated(SurfaceHolder holder) {
+        Log.d(TAG, "surfaceCreated called");
         //playVideo(extras.getString(MEDIA));
+        playVideo("http://10.5.5.9:8080/live/amba.m3u8");
     }
 
     @Override
-    public boolean onSurfaceTextureDestroyed(SurfaceTexture st) {
-        Log.d(TAG, "SurfaceTexture destroyed");
-        // assume activity is pausing, so don't need to update controls
-        return true;    // caller should release ST
+    public boolean onError(MediaPlayer mp, int what, int extra) {
+        Log.e(TAG, "MediaPlayer error: "+ what+" extra: "+extra);
+        super.onPause();
+        releaseMediaPlayer();
+        doCleanUp();
+        return true;
     }
+
     @Override
-    public void onSurfaceTextureSizeChanged(SurfaceTexture st, int width, int height) {
-        Log.d(TAG, "SurfaceTexture onSurfaceTextureSizeChanged");
-        // ignore
+    protected void onPause() {
+        Log.d(TAG, "onPause");
+        super.onPause();
+        releaseMediaPlayer();
+        doCleanUp();
     }
+
     @Override
-    public void onSurfaceTextureUpdated(SurfaceTexture surface) {
-        if (VERBOSE) Log.d(TAG, "SurfaceTexture onSurfaceTextureUpdated");
-        // ignore
+    protected void onDestroy() {
+        Log.d(TAG, "onDestroy");
+        super.onDestroy();
+        releaseMediaPlayer();
+        doCleanUp();
     }
+
+    private void playVideo(String path) {
+        doCleanUp();
+        try {
+            String tpath = URLEncoder.encode(path, "UTF-8");
+            Log.i(TAG, "playVideo path " + path);
+            if (path != "") {
+                // Create a new media player and set the listeners
+                Uri myuri = Uri.parse(path);
+                Log.i(TAG, "playVideo myuri " + myuri);
+                mMediaPlayer = MediaPlayer.create(this, myuri);
+                mMediaPlayer.setOnBufferingUpdateListener(this);
+                mMediaPlayer.setOnCompletionListener(this);
+                mMediaPlayer.setOnPreparedListener(this);
+                mMediaPlayer.setOnVideoSizeChangedListener(this);
+                mMediaPlayer.setOnErrorListener(this);
+                mMediaPlayer.setAudioStreamType(AudioManager.STREAM_MUSIC);
+                mMediaPlayer.setLooping(false);
+                mMediaPlayer.setDisplay(holder);
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "error: " + e.getMessage(), e);
+        }
+    }
+    public void onBufferingUpdate(MediaPlayer arg0, int percent) {
+        Log.d(TAG, "onBufferingUpdate percent:" + percent);
+
+    }
+
+    public void onCompletion(MediaPlayer arg0) {
+        Log.d(TAG, "onCompletion called");
+    }
+    private void doCleanUp() {
+        mVideoWidth = 0;
+        mVideoHeight = 0;
+        mIsVideoReadyToBePlayed = false;
+        mIsVideoSizeKnown = false;
+    }
+
+    private void releaseMediaPlayer() {
+        if (mMediaPlayer != null) {
+            mMediaPlayer.release();
+            mMediaPlayer = null;
+        }
+    }
+
+    public void onVideoSizeChanged(MediaPlayer mp, int width, int height) {
+        Log.v(TAG, "onVideoSizeChanged called");
+        if (width == 0 || height == 0) {
+            Log.e(TAG, "invalid video width(" + width + ") or height(" + height
+                    + ")");
+            return;
+        }
+        mIsVideoSizeKnown = true;
+        mVideoWidth = width;
+        mVideoHeight = height;
+        Log.i(TAG, "Video width(" + width + ") or height(" + height + ")");
+        if (mIsVideoReadyToBePlayed && mIsVideoSizeKnown) {
+            startVideoPlayback();
+        }
+
+    }
+    private void startVideoPlayback() {
+        Log.v(TAG, "startVideoPlayback");
+        holder.setFixedSize(mVideoWidth, mVideoHeight);
+        mMediaPlayer.start();
+    }
+
+    public void onPrepared(MediaPlayer mediaplayer) {
+        Log.d(TAG, "onPrepared called");
+        mIsVideoReadyToBePlayed = true;
+        if (mIsVideoReadyToBePlayed && mIsVideoSizeKnown) {
+            startVideoPlayback();
+        }
+    }
+
     @Override
     public void onClick(View v) {
         try {
