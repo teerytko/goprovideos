@@ -10,6 +10,7 @@ import android.content.IntentFilter;
 import android.graphics.SurfaceTexture;
 import android.media.AudioManager;
 import android.media.MediaPlayer;
+import android.net.NetworkInfo;
 import android.net.Uri;
 import android.net.wifi.ScanResult;
 import android.net.wifi.WifiConfiguration;
@@ -44,6 +45,8 @@ MediaPlayer.OnVideoSizeChangedListener, SurfaceHolder.Callback {
     private static final String TAG = "GoProLiveActivity";
     private SurfaceView mPreview;
     private SurfaceHolder holder;
+    private String command_power_on = "http://10.5.5.9/bacpac/PW?t=nokiantorpedo&p=%01";
+    private String command_power_off = "http://10.5.5.9/bacpac/PW?t=nokiantorpedo&p=%00";
 
     private ImageButton mRecord;
     private Bundle extras;
@@ -59,7 +62,7 @@ MediaPlayer.OnVideoSizeChangedListener, SurfaceHolder.Callback {
     private int mVideoHeight;
     private boolean mIsVideoSizeKnown = false;
     private boolean mIsVideoReadyToBePlayed = false;
-
+    private boolean mConnected = false;
     /**
      *
      * Called when the activity is first created.
@@ -78,13 +81,37 @@ MediaPlayer.OnVideoSizeChangedListener, SurfaceHolder.Callback {
         WifiInfo wi = mWifiManager.getConnectionInfo();
         String ipAddress = Formatter.formatIpAddress(wi.getIpAddress());
         Log.d(TAG, "Current wifi "+ipAddress);
+        WifiStateReceiver stateReceiver = new WifiStateReceiver();
+        registerReceiver(stateReceiver, new IntentFilter(WifiManager.NETWORK_STATE_CHANGED_ACTION));
         if (ipAddress.compareTo("10.5.5.109") == 0) {
             Log.d(TAG, "Connected to GoPro");
+            mConnected = true;
         }
         else
             this.scanWifi(c);
     }
 
+    /*
+     * SurfaceHolder callbacks
+     */
+    public void surfaceChanged(SurfaceHolder surfaceholder, int i, int j, int k) {
+        Log.d(TAG, "surfaceChanged called");
+
+    }
+
+    public void surfaceDestroyed(SurfaceHolder surfaceholder) {
+        Log.d(TAG, "surfaceDestroyed called");
+    }
+
+    public void surfaceCreated(SurfaceHolder holder) {
+        Log.d(TAG, "surfaceCreated called");
+        //playVideo(extras.getString(MEDIA));
+        if (mConnected) {
+
+            //playVideo("http://10.5.5.9:8080/live/amba.m3u8");
+        }
+
+    }
 
     public void scanWifi(Context context) {
         Log.d(TAG, "Got wifi manager "+mWifiManager);
@@ -161,6 +188,25 @@ MediaPlayer.OnVideoSizeChangedListener, SurfaceHolder.Callback {
             mSelectWifiDlg.show();
         }
     }
+
+    class WifiStateReceiver extends BroadcastReceiver {
+        public void onReceive(Context c, Intent intent) {
+            Log.d(TAG, "onReceive state! "+intent);
+            NetworkInfo nwInfo = intent.getParcelableExtra(WifiManager.EXTRA_NETWORK_INFO);
+            if(NetworkInfo.State.CONNECTED.equals(nwInfo.getState())){
+                //This implies the WiFi connection is through
+                String bssid = intent.getStringExtra(WifiManager.EXTRA_BSSID);
+
+                Log.d(TAG, "Connected to "+bssid);
+                if (mWifiConfig != null && mWifiConfig.BSSID == bssid) {
+                    Log.d(TAG, "Connected to selected!");
+                    mConnected = true;
+                }
+
+            }
+        }
+    }
+
     public boolean connectToNetwork(ScanResult selected){
         Log.i(TAG, "Connecting to network " + selected);
         List <WifiConfiguration> listConfig = mWifiManager.getConfiguredNetworks();
@@ -171,8 +217,9 @@ MediaPlayer.OnVideoSizeChangedListener, SurfaceHolder.Callback {
             String SSID = mWifiConfig.SSID.replaceAll("\"$|^\"", "");
             if (SSID.compareTo(selected.SSID) == 0){
                 Log.i(TAG, "Existing network config found " + selected.BSSID);
+                mWifiConfig.BSSID = selected.BSSID;
                 mWifiManager.enableNetwork(mWifiConfig.networkId, true);
-                playVideo("http://10.5.5.9:8080/live/amba.m3u8");
+                //playVideo("http://10.5.5.9:8080/live/amba.m3u8");
                 return true;
             }
         }
@@ -190,29 +237,10 @@ MediaPlayer.OnVideoSizeChangedListener, SurfaceHolder.Callback {
         // Inflate and set the layout for the dialog
         // Pass null as the parent view because its going in the dialog layout
         builder.setView(inflater.inflate(R.layout.dlg_ask_password_view, null));
-        //password_input = new EditText(this);
-        //password_input.setHint("Password");
-        //password_input.setInputType(EditText);
-        //builder.setView(password_input);
         builder.setPositiveButton("OK", this);
         mWifiPasswordDlg = builder.create();
         mWifiPasswordDlg.show();
         return true;
-    }
-
-    public void surfaceChanged(SurfaceHolder surfaceholder, int i, int j, int k) {
-        Log.d(TAG, "surfaceChanged called");
-
-    }
-
-    public void surfaceDestroyed(SurfaceHolder surfaceholder) {
-        Log.d(TAG, "surfaceDestroyed called");
-    }
-
-    public void surfaceCreated(SurfaceHolder holder) {
-        Log.d(TAG, "surfaceCreated called");
-        //playVideo(extras.getString(MEDIA));
-        playVideo("http://10.5.5.9:8080/live/amba.m3u8");
     }
 
     @Override
