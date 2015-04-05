@@ -17,6 +17,8 @@ import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Message;
 import android.text.format.Formatter;
 import android.util.Log;
 import android.view.LayoutInflater;
@@ -28,6 +30,9 @@ import android.widget.EditText;
 import android.widget.ImageButton;
 import android.widget.ListView;
 
+import java.io.IOException;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.net.URLEncoder;
 import java.util.ArrayList;
 import java.util.List;
@@ -63,6 +68,7 @@ MediaPlayer.OnVideoSizeChangedListener, SurfaceHolder.Callback {
     private boolean mIsVideoSizeKnown = false;
     private boolean mIsVideoReadyToBePlayed = false;
     private boolean mConnected = false;
+    private WifiStateReceiver m_stateReceiver;
     /**
      *
      * Called when the activity is first created.
@@ -81,44 +87,14 @@ MediaPlayer.OnVideoSizeChangedListener, SurfaceHolder.Callback {
         WifiInfo wi = mWifiManager.getConnectionInfo();
         String ipAddress = Formatter.formatIpAddress(wi.getIpAddress());
         Log.d(TAG, "Current wifi "+ipAddress);
-        WifiStateReceiver stateReceiver = new WifiStateReceiver();
-        registerReceiver(stateReceiver, new IntentFilter(WifiManager.NETWORK_STATE_CHANGED_ACTION));
+        m_stateReceiver = new WifiStateReceiver();
+        registerReceiver(m_stateReceiver, new IntentFilter(WifiManager.NETWORK_STATE_CHANGED_ACTION));
         if (ipAddress.compareTo("10.5.5.109") == 0) {
             Log.d(TAG, "Connected to GoPro");
             mConnected = true;
         }
         else
             this.scanWifi(c);
-    }
-
-    /*
-     * SurfaceHolder callbacks
-     */
-    public void surfaceChanged(SurfaceHolder surfaceholder, int i, int j, int k) {
-        Log.d(TAG, "surfaceChanged called");
-
-    }
-
-    public void surfaceDestroyed(SurfaceHolder surfaceholder) {
-        Log.d(TAG, "surfaceDestroyed called");
-    }
-
-    public void surfaceCreated(SurfaceHolder holder) {
-        Log.d(TAG, "surfaceCreated called");
-        //playVideo(extras.getString(MEDIA));
-        if (mConnected) {
-
-            //playVideo("http://10.5.5.9:8080/live/amba.m3u8");
-        }
-
-    }
-
-    public void scanWifi(Context context) {
-        Log.d(TAG, "Got wifi manager "+mWifiManager);
-        Log.d(TAG, "Wifi state "+mWifiManager.getWifiState());
-        WifiScanReceiver wifiReceiver = new WifiScanReceiver();
-        registerReceiver(wifiReceiver, new IntentFilter(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION));
-        mWifiManager.startScan();
     }
 
     public void onClick(DialogInterface dialog, int selected) {
@@ -159,7 +135,6 @@ MediaPlayer.OnVideoSizeChangedListener, SurfaceHolder.Callback {
                 //mWifiManager.disconnect();
                 Log.d(TAG, "Connecting to " + netId);
                 mWifiManager.enableNetwork(netId, true);
-                playVideo("http://10.5.5.9:8080/live/amba.m3u8");
             }
         }
         else {
@@ -168,43 +143,33 @@ MediaPlayer.OnVideoSizeChangedListener, SurfaceHolder.Callback {
         }
     }
 
-    class WifiScanReceiver extends BroadcastReceiver {
-        public void onReceive(Context c, Intent intent) {
-            Log.d(TAG, "onReceive!");
-            unregisterReceiver(this);
-            mWifiScanList = mWifiManager.getScanResults();
-            String data = mWifiScanList.get(0).toString();
-            for (int i = 0; i < mWifiScanList.size(); i++) {
-                if (mWifiScanList.get(i).SSID != "") {
-                    mWifis.add((mWifiScanList.get(i)).SSID);
-                    Log.d(TAG, "Found wifi: " + i + " " + mWifiScanList.get(i).SSID + ": -->" + mWifiScanList.get(i).toString());
+    @Override
+    public void onClick(View v) {
+        try {
+            if (v == mRecord) {
+                Log.i(TAG, "User clicked Record/stop");
+                if (v.isSelected()) {
+                    v.setSelected(false);
+                    //mPlayer.pause();
+                }
+                else {
+                    v.setSelected(true);
+                    //mPlayer.play();
                 }
             }
-            AlertDialog.Builder builder = new AlertDialog.Builder(c);
-            builder.setTitle("Select you GoPro device");
-            String[] wifiList = new String[mWifis.size()];
-            builder.setItems(mWifis.toArray(wifiList), (GoProLiveActivity) c);
-            mSelectWifiDlg = builder.create();
-            mSelectWifiDlg.show();
+
+        }
+        catch (Throwable t) {
+            Log.e(TAG, t.toString());
         }
     }
 
-    class WifiStateReceiver extends BroadcastReceiver {
-        public void onReceive(Context c, Intent intent) {
-            Log.d(TAG, "onReceive state! "+intent);
-            NetworkInfo nwInfo = intent.getParcelableExtra(WifiManager.EXTRA_NETWORK_INFO);
-            if(NetworkInfo.State.CONNECTED.equals(nwInfo.getState())){
-                //This implies the WiFi connection is through
-                String bssid = intent.getStringExtra(WifiManager.EXTRA_BSSID);
-
-                Log.d(TAG, "Connected to "+bssid);
-                if (mWifiConfig != null && mWifiConfig.BSSID == bssid) {
-                    Log.d(TAG, "Connected to selected!");
-                    mConnected = true;
-                }
-
-            }
-        }
+    public void scanWifi(Context context) {
+        Log.d(TAG, "Got wifi manager " + mWifiManager);
+        Log.d(TAG, "Wifi state " + mWifiManager.getWifiState());
+        WifiScanReceiver wifiReceiver = new WifiScanReceiver();
+        registerReceiver(wifiReceiver, new IntentFilter(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION));
+        mWifiManager.startScan();
     }
 
     public boolean connectToNetwork(ScanResult selected){
@@ -291,6 +256,31 @@ MediaPlayer.OnVideoSizeChangedListener, SurfaceHolder.Callback {
             Log.e(TAG, "error: " + e.getMessage(), e);
         }
     }
+
+    /*
+     * SurfaceHolder callbacks
+     */
+    public void surfaceChanged(SurfaceHolder surfaceholder, int i, int j, int k) {
+        Log.d(TAG, "surfaceChanged called");
+
+    }
+
+    public void surfaceDestroyed(SurfaceHolder surfaceholder) {
+        Log.d(TAG, "surfaceDestroyed called");
+    }
+
+    public void surfaceCreated(SurfaceHolder holder) {
+        Log.d(TAG, "surfaceCreated called");
+        //playVideo(extras.getString(MEDIA));
+        if (mConnected) {
+            playVideo("http://10.5.5.9:8080/live/amba.m3u8");
+        }
+
+    }
+
+    /*
+     * callbacks
+     */
     public void onBufferingUpdate(MediaPlayer arg0, int percent) {
         Log.d(TAG, "onBufferingUpdate percent:" + percent);
 
@@ -343,25 +333,65 @@ MediaPlayer.OnVideoSizeChangedListener, SurfaceHolder.Callback {
         }
     }
 
-    @Override
-    public void onClick(View v) {
-        try {
-            if (v == mRecord) {
-                Log.i(TAG, "User clicked Record/stop");
-                if (v.isSelected()) {
-                    v.setSelected(false);
-                    //mPlayer.pause();
-                }
-                else {
-                    v.setSelected(true);
-                    //mPlayer.play();
+    class WifiScanReceiver extends BroadcastReceiver {
+        public void onReceive(Context c, Intent intent) {
+            Log.d(TAG, "onReceive!");
+            unregisterReceiver(this);
+            mWifiScanList = mWifiManager.getScanResults();
+            String data = mWifiScanList.get(0).toString();
+            for (int i = 0; i < mWifiScanList.size(); i++) {
+                if (mWifiScanList.get(i).SSID != "") {
+                    mWifis.add((mWifiScanList.get(i)).SSID);
+                    Log.d(TAG, "Found wifi: " + i + " " + mWifiScanList.get(i).SSID + ": -->" + mWifiScanList.get(i).toString());
                 }
             }
-
-        }
-        catch (Throwable t) {
-            Log.e(TAG, t.toString());
+            AlertDialog.Builder builder = new AlertDialog.Builder(c);
+            builder.setTitle("Select you GoPro device");
+            String[] wifiList = new String[mWifis.size()];
+            builder.setItems(mWifis.toArray(wifiList), (GoProLiveActivity) c);
+            mSelectWifiDlg = builder.create();
+            mSelectWifiDlg.show();
         }
     }
+    public Handler _handler = new Handler() {
+        @Override
+        public void handleMessage(Message msg) {
+            Log.d(TAG, String.format("Handler.handleMessage(): msg=%s", msg));
+            //try {
+            //    URL url = new URL(command_power_off);
+            //    HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            //    conn.connect();
+            //}
+            //catch (IOException e) {
+            //    Log.e(TAG, "Error in http command "+e);
+            // }
+            super.handleMessage(msg);
+        }
+    };
 
+    class WifiStateReceiver extends BroadcastReceiver {
+        public void onReceive(Context c, Intent intent) {
+            Log.d(TAG, "onReceive state! "+intent);
+            NetworkInfo nwInfo = intent.getParcelableExtra(WifiManager.EXTRA_NETWORK_INFO);
+            if(NetworkInfo.State.CONNECTED.equals(nwInfo.getState())){
+                //This implies the WiFi connection is through
+                String bssid = intent.getStringExtra(WifiManager.EXTRA_BSSID);
+
+                Log.d(TAG, "Test "+mWifiConfig);
+                Log.d(TAG, "Connected to "+bssid);
+                if (mWifiConfig != null)
+                    Log.d(TAG, "Test BSSID "+mWifiConfig.BSSID);
+                if (mWifiConfig != null && bssid != null && mWifiConfig.BSSID.compareTo(bssid) == 0) {
+                    Log.d(TAG, "Connected to selected!");
+                    mConnected = true;
+                    Message msg = Message.obtain();
+                    msg.what = 999;
+                    GoProLiveActivity act = (GoProLiveActivity) c;
+                    act._handler.sendMessage(msg);
+                    //playVideo("http://10.5.5.9:8080/live/amba.m3u8");
+                }
+
+            }
+        }
+    }
 }
