@@ -7,7 +7,6 @@ import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.IntentFilter;
-import android.graphics.SurfaceTexture;
 import android.media.AudioManager;
 import android.media.MediaPlayer;
 import android.net.NetworkInfo;
@@ -16,6 +15,7 @@ import android.net.wifi.ScanResult;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
+import android.os.AsyncTask;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
@@ -24,13 +24,15 @@ import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
-import android.view.TextureView;
 import android.view.View;
 import android.widget.EditText;
 import android.widget.ImageButton;
-import android.widget.ListView;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.Reader;
+import java.io.UnsupportedEncodingException;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLEncoder;
@@ -52,6 +54,7 @@ MediaPlayer.OnVideoSizeChangedListener, SurfaceHolder.Callback {
     private SurfaceHolder holder;
     private String command_power_on = "http://10.5.5.9/bacpac/PW?t=nokiantorpedo&p=%01";
     private String command_power_off = "http://10.5.5.9/bacpac/PW?t=nokiantorpedo&p=%00";
+    private String command_get_state = "http://10.5.5.9/camera/se?t=nokiantorpedo";
 
     private ImageButton mRecord;
     private Bundle extras;
@@ -75,6 +78,7 @@ MediaPlayer.OnVideoSizeChangedListener, SurfaceHolder.Callback {
      */
     @Override
     public void onCreate(Bundle icicle) {
+        Log.d(TAG, "onCreate");
         super.onCreate(icicle);
         setContentView(R.layout.activity_video_preview_full);
         mPreview = (SurfaceView) findViewById(com.intel.tsrytkon.goprovideos.R.id.fullscreen_content);
@@ -91,7 +95,9 @@ MediaPlayer.OnVideoSizeChangedListener, SurfaceHolder.Callback {
         registerReceiver(m_stateReceiver, new IntentFilter(WifiManager.NETWORK_STATE_CHANGED_ACTION));
         if (ipAddress.compareTo("10.5.5.109") == 0) {
             Log.d(TAG, "Connected to GoPro");
-            mConnected = true;
+            Message msg = Message.obtain();
+            msg.what = 1001;
+            _handler.sendMessage(msg);
         }
         else
             this.scanWifi(c);
@@ -228,6 +234,10 @@ MediaPlayer.OnVideoSizeChangedListener, SurfaceHolder.Callback {
     @Override
     protected void onDestroy() {
         Log.d(TAG, "onDestroy");
+        if (m_stateReceiver != null) {
+            unregisterReceiver(m_stateReceiver);
+            m_stateReceiver = null;
+        }
         super.onDestroy();
         releaseMediaPlayer();
         doCleanUp();
@@ -242,15 +252,17 @@ MediaPlayer.OnVideoSizeChangedListener, SurfaceHolder.Callback {
                 // Create a new media player and set the listeners
                 Uri myuri = Uri.parse(path);
                 Log.i(TAG, "playVideo myuri " + myuri);
-                mMediaPlayer = MediaPlayer.create(this, myuri);
+                mMediaPlayer = new MediaPlayer(); // MediaPlayer.create(this, myuri);
                 mMediaPlayer.setOnBufferingUpdateListener(this);
                 mMediaPlayer.setOnCompletionListener(this);
                 mMediaPlayer.setOnPreparedListener(this);
                 mMediaPlayer.setOnVideoSizeChangedListener(this);
                 mMediaPlayer.setOnErrorListener(this);
-                mMediaPlayer.setAudioStreamType(AudioManager.STREAM_MUSIC);
+                mMediaPlayer.setAudioStreamType(AudioManager.STREAM_SYSTEM);
                 mMediaPlayer.setLooping(false);
                 mMediaPlayer.setDisplay(holder);
+                mMediaPlayer.setDataSource(this, myuri);
+                mMediaPlayer.prepare();
             }
         } catch (Exception e) {
             Log.e(TAG, "error: " + e.getMessage(), e);
@@ -271,7 +283,6 @@ MediaPlayer.OnVideoSizeChangedListener, SurfaceHolder.Callback {
 
     public void surfaceCreated(SurfaceHolder holder) {
         Log.d(TAG, "surfaceCreated called");
-        //playVideo(extras.getString(MEDIA));
         if (mConnected) {
             playVideo("http://10.5.5.9:8080/live/amba.m3u8");
         }
@@ -289,6 +300,7 @@ MediaPlayer.OnVideoSizeChangedListener, SurfaceHolder.Callback {
     public void onCompletion(MediaPlayer arg0) {
         Log.d(TAG, "onCompletion called");
     }
+
     private void doCleanUp() {
         mVideoWidth = 0;
         mVideoHeight = 0;
@@ -317,8 +329,8 @@ MediaPlayer.OnVideoSizeChangedListener, SurfaceHolder.Callback {
         if (mIsVideoReadyToBePlayed && mIsVideoSizeKnown) {
             startVideoPlayback();
         }
-
     }
+
     private void startVideoPlayback() {
         Log.v(TAG, "startVideoPlayback");
         holder.setFixedSize(mVideoWidth, mVideoHeight);
@@ -357,17 +369,82 @@ MediaPlayer.OnVideoSizeChangedListener, SurfaceHolder.Callback {
         @Override
         public void handleMessage(Message msg) {
             Log.d(TAG, String.format("Handler.handleMessage(): msg=%s", msg));
-            //try {
-            //    URL url = new URL(command_power_off);
-            //    HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-            //    conn.connect();
-            //}
-            //catch (IOException e) {
-            //    Log.e(TAG, "Error in http command "+e);
-            // }
+            if (msg.what == 1001) // Connected to GoPro
+            {
+                Log.d(TAG, "Connected to GoPro");
+                mConnected = true;
+                new HttpCommandTask(1002).execute(command_get_state);
+                //playVideo("http://10.5.5.9:8080/live/amba.m3u8");
+            }
+            else if (msg.what == 1002) // Connected to GoPro
+            {
+                Log.d(TAG, "Got GoPro state");
+
+            }
             super.handleMessage(msg);
         }
     };
+
+    private class HttpCommandTask extends AsyncTask<String, Void, String> {
+        int m_command;
+
+        public HttpCommandTask(int commandId) {
+            super();
+            m_command = commandId;
+        }
+        @Override
+        protected String doInBackground(String... command_url) {
+            try {
+                return connectUrl(command_url[0]);
+            }
+            catch (IOException e) {
+                Log.e(TAG, "Error in http command "+e);
+                return "Error in http command "+e;
+            }
+        }
+        // onPostExecute displays the results of the AsyncTask.
+        @Override
+        protected void onPostExecute(String result) {
+            Log.d(TAG, "GoPro command ret: "+result);
+            Message msg = Message.obtain();
+            msg.what = m_command;
+            //msg.setData((Bundle) result);
+            _handler.sendMessage(msg);
+        }
+        // Http connection
+        public String connectUrl(String command_url) throws IOException {
+
+            InputStream is = null;
+            int len = 500;
+
+            // params comes from the execute() call: params[0] is the url.
+            try {
+                URL url = new URL(command_url);
+                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                conn.connect();
+                int response = conn.getResponseCode();
+                Log.d(TAG, "The response is: " + response);
+                is = conn.getInputStream();
+
+                // Convert the InputStream into a string
+                String contentAsString = readIt(is, len);
+                return contentAsString;
+            }
+            finally {
+                if (is != null) {
+                    is.close();
+                }
+            }
+        }
+        // Reads an InputStream and converts it to a String.
+        public String readIt(InputStream stream, int len) throws IOException, UnsupportedEncodingException {
+            Reader reader = null;
+            reader = new InputStreamReader(stream, "UTF-8");
+            char[] buffer = new char[len];
+            reader.read(buffer);
+            return new String(buffer);
+        }
+    }
 
     class WifiStateReceiver extends BroadcastReceiver {
         public void onReceive(Context c, Intent intent) {
@@ -376,19 +453,16 @@ MediaPlayer.OnVideoSizeChangedListener, SurfaceHolder.Callback {
             if(NetworkInfo.State.CONNECTED.equals(nwInfo.getState())){
                 //This implies the WiFi connection is through
                 String bssid = intent.getStringExtra(WifiManager.EXTRA_BSSID);
-
                 Log.d(TAG, "Test "+mWifiConfig);
                 Log.d(TAG, "Connected to "+bssid);
                 if (mWifiConfig != null)
                     Log.d(TAG, "Test BSSID "+mWifiConfig.BSSID);
                 if (mWifiConfig != null && bssid != null && mWifiConfig.BSSID.compareTo(bssid) == 0) {
                     Log.d(TAG, "Connected to selected!");
-                    mConnected = true;
                     Message msg = Message.obtain();
-                    msg.what = 999;
+                    msg.what = 1001;
                     GoProLiveActivity act = (GoProLiveActivity) c;
                     act._handler.sendMessage(msg);
-                    //playVideo("http://10.5.5.9:8080/live/amba.m3u8");
                 }
 
             }
