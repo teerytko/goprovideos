@@ -279,7 +279,7 @@ public class PlayDecodedFrames {
                     } else if (decoderStatus < 0) {
                         Log.e(TAG, "unexpected result from decoder.dequeueOutputBuffer: " + decoderStatus);
                     } else { // decoderStatus >= 0
-                        ByteBuffer outputBuf = mDecoderOutputBuffers[decoderStatus];
+                        ByteBuffer outputBuf = decoder.getOutputBuffer(decoderStatus);
                         if (VERBOSE) Log.i(TAG, "surface decoder given buffer " + decoderStatus +
                                 " (time=" + info.presentationTimeUs + ")");
                         if ((info.flags & MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0) {
@@ -398,6 +398,7 @@ public class PlayDecodedFrames {
                 }
                 mClock.stop();
             } catch (Throwable th) {
+                th.printStackTrace();
                 Log.e(TAG, String.valueOf(th));
                 mThrowable = th;
             }

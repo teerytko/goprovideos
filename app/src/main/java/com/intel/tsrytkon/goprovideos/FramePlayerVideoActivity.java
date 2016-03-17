@@ -148,27 +148,24 @@ public class FramePlayerVideoActivity extends Activity implements
 
     private void playVideo(String path) {
         doCleanUp();
+        Log.i(TAG, "playVideo: "+path);
+        mProgress.setIndeterminate(false);
+        mSurfaceTexture = mPreview.getSurfaceTexture();
+        //mSurfaceTexture.setOnFrameAvailableListener(this);
+        Surface s = new Surface(mSurfaceTexture);
+        mPlayer = new PlayDecodedFrames(path, s, mProgress);
+        adjustAspectRatio(
+                mPlayer.getVideoWidth(),
+                mPlayer.getVideoHeight(),
+                mPlayer.getVideoRotation());
         try {
-            Log.i(TAG, "playVideo: "+path);
-            mProgress.setIndeterminate(false);
-            mSurfaceTexture = mPreview.getSurfaceTexture();
-            //mSurfaceTexture.setOnFrameAvailableListener(this);
-            Surface s = new Surface(mSurfaceTexture);
-            mPlayer = new PlayDecodedFrames(path, s, mProgress);
-            adjustAspectRatio(
-                    mPlayer.getVideoWidth(),
-                    mPlayer.getVideoHeight(),
-                    mPlayer.getVideoRotation());
-            try {
-                mPlayer.play();
-                mPlay.setSelected(true);
+            mPlayer.play();
+            mPlay.setSelected(true);
 
-            }
-            catch (Throwable e) {
-                System.out.println(e);
-            }
-        } catch (Exception e) {
-            Log.e(TAG, "error: " + e.getMessage(), e);
+        }
+        catch (Throwable e) {
+            e.printStackTrace();
+            System.out.println(e);
         }
     }
 
