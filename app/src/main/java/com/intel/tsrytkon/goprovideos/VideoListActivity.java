@@ -24,6 +24,7 @@ import android.view.MenuInflater;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.AdapterView;
+import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ListView;
 import android.support.v4.app.LoaderManager;
@@ -33,9 +34,11 @@ import java.io.File;
 import java.util.ArrayList;
 
 
-public class VideoListActivity extends FragmentActivity implements LoaderManager.LoaderCallbacks<Cursor> {
+public class VideoListActivity extends FragmentActivity implements View.OnClickListener,
+        LoaderManager.LoaderCallbacks<Cursor> {
     static final int REQUEST_VIDEO_CAPTURE = 1;
     private static final String MEDIA = "media";
+    private Button mRecordButton;
     private ListView mListView;
     private ArrayList mPaths = new ArrayList();
     private static String GOPRO_LIVE = "http://10.5.5.9:8080/live/amba.m3u8";
@@ -82,6 +85,9 @@ public class VideoListActivity extends FragmentActivity implements LoaderManager
         super.onCreate(savedInstanceState);
         setContentView(com.intel.tsrytkon.goprovideos.R.layout.activity_go_pro);
         // get reference to the views
+        mRecordButton = (Button) findViewById(R.id.record_button);
+        mRecordButton.setOnClickListener(this);
+
         mListView = (ListView) findViewById(com.intel.tsrytkon.goprovideos.R.id.listView);
         Log.i(TAG, "Create main view!!");
         // For the cursor adapter, specify which columns go into which views
@@ -142,7 +148,23 @@ public class VideoListActivity extends FragmentActivity implements LoaderManager
 
         return super.onOptionsItemSelected(item);
     }
+    @Override
+    public void onClick(View v) {
+        try {
+            if (v == mRecordButton) {
+                Log.i(TAG, "User clicked record");
+                Intent takeVideoIntent = new Intent(MediaStore.ACTION_VIDEO_CAPTURE);
+                if (takeVideoIntent.resolveActivity(getPackageManager()) != null) {
+                    startActivityForResult(takeVideoIntent, REQUEST_VIDEO_CAPTURE);
+                }
+            }
 
+        }
+        catch (Throwable t) {
+            t.printStackTrace();
+            Log.e(TAG, t.toString());
+        }
+    }
     /**
      * Context menu for video list
      */
@@ -182,11 +204,16 @@ public class VideoListActivity extends FragmentActivity implements LoaderManager
                         String newName = input.getEditableText().toString();
                         Log.d(TAG, "Rename to "+newName);
                         File nf = new File(vf.getPath(), newName);
-                        vf.renameTo(nf);
-                        sendBroadcast(new Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE, Uri.fromFile(vf)));
-                        sendBroadcast(new Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE, Uri.fromFile(nf)));
-
-                        //update your listview here
+                        Boolean ret = vf.renameTo(nf);
+                        if (!ret) {
+                            Toast.makeText(VideoListActivity.this, "Could not rename!", Toast.LENGTH_SHORT).show();
+                            Toast.makeText(VideoListActivity.this, "Permissions? " + vf.getPath(), Toast.LENGTH_LONG).show();
+                        }
+                        else {
+                            // update media
+                            sendBroadcast(new Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE, Uri.fromFile(vf)));
+                            sendBroadcast(new Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE, Uri.fromFile(nf)));
+                        }
                     }
                 });
 
@@ -210,4 +237,6 @@ public class VideoListActivity extends FragmentActivity implements LoaderManager
                 return super.onContextItemSelected(item);
         }
     }
+
+
 }

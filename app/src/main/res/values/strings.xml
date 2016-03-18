@@ -5,7 +5,7 @@
     <string name="local_video_list">Local Videos</string>
     <string name="action_settings">Settings</string>
     <string name="action_play">Play</string>
-    <string name="action_record">Record</string>
+    <string name="action_record">Record New</string>
     <string name="action_play_file">Play Local file</string>
     <string name="action_play_live">Play Live stream</string>
     <string name="action_connect">GoPro Connect</string>
