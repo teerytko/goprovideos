@@ -351,6 +351,7 @@ public class PlayDecodedFrames {
 
             @Override
             public void run() {
+                if (VERBOSE) Log.i(TAG, "Start ExtractClock!!");
                 try {
                     while (mRun) {
                         if (VERBOSE) Log.i(TAG, "Running clock!! "+mExtractThread.sleepTime*mExtractThread.mSpeed);
@@ -370,6 +371,7 @@ public class PlayDecodedFrames {
 
         private PlayDecodedFramesThread(PlayDecodedFrames decoder) {
             mDecoder = decoder;
+            mDecoder.inputDone = false;
             mDecoder.outputDone = false;
             mClock = new ExtractClock(this);
         }

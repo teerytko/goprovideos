@@ -27,8 +27,8 @@ public class FramePlayerVideoActivity extends Activity implements
         TextureView.SurfaceTextureListener, PlayDecodedFramesCallback {
 
     private static final int END_OF_STREAM = 1;
-    private boolean VERBOSE = false;
-    private static final String TAG = "FramePlayerVideoActivity";
+    private boolean VERBOSE = true;
+    private static final String TAG = "FramePlayerVideo";
     private int mVideoWidth;
     private int mVideoHeight;
     private TextureView mPreview;
@@ -44,6 +44,7 @@ public class FramePlayerVideoActivity extends Activity implements
     private Handler mHandler = null;
     private String mCurPath;
     private Surface mSurface = null;
+    private int curSpeed = 0;
 
     /**
      *
@@ -75,7 +76,9 @@ public class FramePlayerVideoActivity extends Activity implements
                     // The decoding is done
                     case END_OF_STREAM:
                         System.out.println("EOS reached! Replay");
+                        mPlay.setSelected(false);
                         mPlayer.reset();
+                        mPlayer.setSpeed(curSpeed);
                         break;
                     default:
                         super.handleMessage(inputMessage);
@@ -134,14 +137,14 @@ public class FramePlayerVideoActivity extends Activity implements
                 mPlayer.prev();
             }
             else if (v == mSpeed) {
-                int sp = Character.getNumericValue(mSpeed.getText().charAt(2));
+                curSpeed = Character.getNumericValue(mSpeed.getText().charAt(2));
                 Log.i(TAG, "User clicked Speed = "+mSpeed.getText());
-                sp = sp * 2;
-                if (sp > 10)
-                    sp = 1;
-                Log.i(TAG, "Set Speed = "+sp);
-                mPlayer.setSpeed(sp);
-                mSpeed.setText("1/"+sp);
+                curSpeed = curSpeed * 2;
+                if (curSpeed > 10)
+                    curSpeed = 1;
+                Log.i(TAG, "Set Speed = "+curSpeed);
+                mPlayer.setSpeed(curSpeed);
+                mSpeed.setText("1/"+curSpeed);
             }
 
         }
