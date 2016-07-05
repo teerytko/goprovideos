@@ -7,6 +7,9 @@ import android.content.Context;
 import android.graphics.Matrix;
 import android.graphics.SurfaceTexture;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
+import android.os.Message;
 import android.util.Log;
 import android.view.Display;
 import android.view.MotionEvent;
@@ -21,8 +24,9 @@ import android.widget.ProgressBar;
 
 public class FramePlayerVideoActivity extends Activity implements
         SurfaceHolder.Callback, View.OnClickListener, View.OnTouchListener,
-        TextureView.SurfaceTextureListener {
+        TextureView.SurfaceTextureListener, PlayDecodedFramesCallback {
 
+    private static final int END_OF_STREAM = 1;
     private boolean VERBOSE = false;
     private static final String TAG = "FramePlayerVideoActivity";
     private int mVideoWidth;
@@ -37,6 +41,9 @@ public class FramePlayerVideoActivity extends Activity implements
     private static final String MEDIA = "media";
     private PlayDecodedFrames mPlayer;
     private SurfaceTexture mSurfaceTexture = null;
+    private Handler mHandler = null;
+    private String mCurPath;
+    private Surface mSurface = null;
 
     /**
      *
@@ -59,6 +66,22 @@ public class FramePlayerVideoActivity extends Activity implements
         mSpeed = (Button) findViewById(com.intel.tsrytkon.goprovideos.R.id.action_speed);
         mSpeed.setOnClickListener(this);
         extras = getIntent().getExtras();
+
+        // Defines a Handler object that's attached to the UI thread
+        mHandler = new Handler(Looper.getMainLooper()) {
+            @Override
+            public void handleMessage(Message inputMessage) {
+                switch (inputMessage.what) {
+                    // The decoding is done
+                    case END_OF_STREAM:
+                        System.out.println("EOS reached! Replay");
+                        mPlayer.reset();
+                        break;
+                    default:
+                        super.handleMessage(inputMessage);
+                }
+            }
+        };
     }
 
     @Override
@@ -74,7 +97,7 @@ public class FramePlayerVideoActivity extends Activity implements
     @Override
     public boolean onSurfaceTextureDestroyed(SurfaceTexture st) {
         Log.d(TAG, "SurfaceTexture destroyed");
-        // assume activity is pausing, so don't need to update controls
+        mPlayer.pause();
         return true;    // caller should release ST
     }
     @Override
@@ -148,12 +171,12 @@ public class FramePlayerVideoActivity extends Activity implements
 
     private void playVideo(String path) {
         doCleanUp();
-        Log.i(TAG, "playVideo: "+path);
+        Log.i(TAG, "playVideo: " + path);
+        mCurPath = path;
         mProgress.setIndeterminate(false);
         mSurfaceTexture = mPreview.getSurfaceTexture();
-        //mSurfaceTexture.setOnFrameAvailableListener(this);
-        Surface s = new Surface(mSurfaceTexture);
-        mPlayer = new PlayDecodedFrames(path, s, mProgress);
+        mSurface = new Surface(mSurfaceTexture);
+        mPlayer = new PlayDecodedFrames(path, mSurface, this);
         adjustAspectRatio(
                 mPlayer.getVideoWidth(),
                 mPlayer.getVideoHeight(),
@@ -162,6 +185,21 @@ public class FramePlayerVideoActivity extends Activity implements
             mPlayer.play();
             mPlay.setSelected(true);
 
+        }
+        catch (Throwable e) {
+            e.printStackTrace();
+            System.out.println(e);
+        }
+    }
+
+    private void rePlayVideo() {
+        doCleanUp();
+        Log.i(TAG, "rePlayVideo: " + mCurPath);
+        mProgress.setIndeterminate(false);
+        mPlayer = new PlayDecodedFrames(mCurPath, mSurface, this);
+        try {
+            mPlayer.play();
+            mPlay.setSelected(true);
         }
         catch (Throwable e) {
             e.printStackTrace();
@@ -226,7 +264,6 @@ public class FramePlayerVideoActivity extends Activity implements
     @Override
     protected void onPause() {
         super.onPause();
-        doCleanUp();
     }
 
     @Override
@@ -254,6 +291,20 @@ public class FramePlayerVideoActivity extends Activity implements
 
     public void onRequestPrevFrame() {
         System.out.println("onRequestPrevFrame: cur pos:"+0);
+    }
+
+    public void setMaxProgress(int maxProgress) {
+        mProgress.setMax(maxProgress);
+
+    }
+
+    public void onProgress(int current) {
+        mProgress.setProgress(current);
+    }
+
+    public void onEndOfStream() {
+        Message m = Message.obtain(mHandler, END_OF_STREAM);
+        mHandler.sendMessage(m);
     }
 
 }

@@ -25,7 +25,6 @@ import android.media.MediaMetadataRetriever;
 import android.os.Environment;
 import android.util.Log;
 import android.view.Surface;
-import android.widget.ProgressBar;
 
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -38,12 +37,11 @@ import java.util.concurrent.Semaphore;
  */
 public class PlayDecodedFrames {
     private static final String TAG = "PlayDecodedFrames";
-    private static final boolean VERBOSE = false;           // lots of logging
+    private static final boolean VERBOSE = true;           // lots of logging
 
     // where to find files (note: requires WRITE_EXTERNAL_STORAGE permission)
     private static final File FILES_DIR = Environment.getExternalStorageDirectory();
     private static final int MAX_FRAMES = 10;       // stop extracting after this many
-    private ProgressBar mProgress = null;
     private PlayDecodedFramesThread mWorkerThread;
     private String mInputFile = "N/A";
     private MediaCodec decoder = null;
@@ -59,11 +57,13 @@ public class PlayDecodedFrames {
     private Surface mSurface = null;
     private MediaFormat mFormat;
     private SurfaceTexture mSurfaceTexture = null;
+    private PlayDecodedFramesCallback mCb = null;
 
-    public PlayDecodedFrames(String inputFile, Surface surface, ProgressBar progress) {
+
+    public PlayDecodedFrames(String inputFile, Surface surface, PlayDecodedFramesCallback cb) {
         mInputFile = inputFile;
         mSurface = surface;
-        mProgress = progress;
+        mCb = cb;
         initializeExtractor();
         mWorkerThread = new PlayDecodedFramesThread(this);
         mWorkerThread.start();
@@ -88,9 +88,7 @@ public class PlayDecodedFrames {
         mWorkerThread.mClock.start();
     }
 
-    public void pause() throws Throwable {
-        mWorkerThread.mClock.stop();
-    }
+    public void pause() { mWorkerThread.mClock.stop(); }
 
     public void next() throws Throwable {
         if (!mWorkerThread.mClock.mRun)
@@ -132,6 +130,14 @@ public class PlayDecodedFrames {
             this.seekToPrecise(mPrevFrame[0]);
 
         }
+    }
+
+    public void reset() {
+        this.pause();
+        decoder.stop();
+        initializeExtractor();
+        mWorkerThread = new PlayDecodedFramesThread(this);
+        mWorkerThread.start();
     }
 
     public int getVideoWidth() {
@@ -191,7 +197,8 @@ public class PlayDecodedFrames {
             extractor.selectTrack(trackIndex);
             mFormat = extractor.getTrackFormat(trackIndex);
             duration = mFormat.getLong(MediaFormat.KEY_DURATION);
-            mProgress.setMax((int)duration);
+
+            mCb.setMaxProgress((int)duration);
             Log.d(TAG, "Video size is " + mFormat.getInteger(MediaFormat.KEY_WIDTH) + "x" +
                     mFormat.getInteger(MediaFormat.KEY_HEIGHT)+" duration: "+duration);
 
@@ -200,6 +207,7 @@ public class PlayDecodedFrames {
             System.out.println(e);
         }
     }
+
     private void initializeDecoder() throws IOException {
         try {
             // Create a MediaCodec decoder, and configure it with the MediaFormat from the
@@ -210,7 +218,6 @@ public class PlayDecodedFrames {
             decoder.configure(mFormat, mSurface, null, 0);
             decoder.start();
             mDecoderInputBuffers = decoder.getInputBuffers();
-            mDecoderOutputBuffers = decoder.getOutputBuffers();
 
         } catch (Exception e) {
             e.printStackTrace();
@@ -285,6 +292,8 @@ public class PlayDecodedFrames {
                         if ((info.flags & MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0) {
                             if (VERBOSE) Log.d(TAG, "output EOS");
                             outputDone = true;
+                            mCb.onEndOfStream();
+
                         }
                         boolean doRender = (info.size != 0);
 
@@ -294,8 +303,8 @@ public class PlayDecodedFrames {
                             else
                                 mSeeking = -1;
 
-                        if (doRender && mProgress != null)
-                            mProgress.setProgress((int) info.presentationTimeUs);
+                        if (doRender && mCb != null)
+                            mCb.onProgress((int) info.presentationTimeUs);
 
                         decoder.releaseOutputBuffer(decoderStatus, doRender);
                         mPrevFrame[0] = mPrevFrame[1];
@@ -361,6 +370,7 @@ public class PlayDecodedFrames {
 
         private PlayDecodedFramesThread(PlayDecodedFrames decoder) {
             mDecoder = decoder;
+            mDecoder.outputDone = false;
             mClock = new ExtractClock(this);
         }
         public void start() {
@@ -394,8 +404,10 @@ public class PlayDecodedFrames {
                             info);
                     if (VERBOSE) Log.i(TAG, "Main loop - frame done");
                     sleepTime = (info.presentationTimeUs - prevTime) / 1000;
+                    if (VERBOSE) Log.i(TAG, "sleepTime: " + sleepTime);
                     prevTime = info.presentationTimeUs;
                 }
+                Log.i(TAG, "Exit WorkThread");
                 mClock.stop();
             } catch (Throwable th) {
                 th.printStackTrace();
@@ -404,7 +416,7 @@ public class PlayDecodedFrames {
             }
             finally {
                 mClock.stop();
-                mDecoder.doCleanup();
+                //mDecoder.doCleanup();
             }
         }
     }

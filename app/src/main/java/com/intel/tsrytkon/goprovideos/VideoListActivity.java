@@ -55,7 +55,8 @@ public class VideoListActivity extends FragmentActivity implements View.OnClickL
                                MediaStore.Video.Media.DATA};
         return new CursorLoader(this, MediaStore.Video.Media.EXTERNAL_CONTENT_URI, projection,
                 null, // Return all rows
-                null, null);
+                null,
+                "date_added DESC");
     }
 
     @Override
@@ -83,7 +84,7 @@ public class VideoListActivity extends FragmentActivity implements View.OnClickL
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(com.intel.tsrytkon.goprovideos.R.layout.activity_go_pro);
+        setContentView(com.intel.tsrytkon.goprovideos.R.layout.activity_main_list_view);
         // get reference to the views
         mRecordButton = (Button) findViewById(R.id.record_button);
         mRecordButton.setOnClickListener(this);
