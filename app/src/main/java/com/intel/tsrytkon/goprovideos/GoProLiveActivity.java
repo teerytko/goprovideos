@@ -1,5 +1,6 @@
 package com.intel.tsrytkon.goprovideos;
 
+import android.Manifest;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.BroadcastReceiver;
@@ -7,6 +8,7 @@ import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.pm.PackageManager;
 import android.media.AudioManager;
 import android.media.MediaPlayer;
 import android.net.NetworkInfo;
@@ -28,6 +30,8 @@ import android.view.View;
 import android.widget.EditText;
 import android.widget.ImageButton;
 
+import androidx.core.app.ActivityCompat;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -43,10 +47,10 @@ import java.util.List;
  * Created by tsrytkon on 3/8/15.
  */
 public class GoProLiveActivity extends Activity implements
-View.OnClickListener, DialogInterface.OnClickListener,
-MediaPlayer.OnBufferingUpdateListener, MediaPlayer.OnCompletionListener,
-MediaPlayer.OnPreparedListener, MediaPlayer.OnErrorListener,
-MediaPlayer.OnVideoSizeChangedListener, SurfaceHolder.Callback {
+        View.OnClickListener, DialogInterface.OnClickListener,
+        MediaPlayer.OnBufferingUpdateListener, MediaPlayer.OnCompletionListener,
+        MediaPlayer.OnPreparedListener, MediaPlayer.OnErrorListener,
+        MediaPlayer.OnVideoSizeChangedListener, SurfaceHolder.Callback {
 
     private boolean VERBOSE = false;
     private static final String TAG = "GoProLiveActivity";
@@ -72,6 +76,7 @@ MediaPlayer.OnVideoSizeChangedListener, SurfaceHolder.Callback {
     private boolean mIsVideoReadyToBePlayed = false;
     private boolean mConnected = false;
     private WifiStateReceiver m_stateReceiver;
+
     /**
      *
      * Called when the activity is first created.
@@ -90,7 +95,7 @@ MediaPlayer.OnVideoSizeChangedListener, SurfaceHolder.Callback {
         mWifiManager = (WifiManager) c.getSystemService(Context.WIFI_SERVICE);
         WifiInfo wi = mWifiManager.getConnectionInfo();
         String ipAddress = Formatter.formatIpAddress(wi.getIpAddress());
-        Log.d(TAG, "Current wifi "+ipAddress);
+        Log.d(TAG, "Current wifi " + ipAddress);
         m_stateReceiver = new WifiStateReceiver();
         registerReceiver(m_stateReceiver, new IntentFilter(WifiManager.NETWORK_STATE_CHANGED_ACTION));
         if (ipAddress.compareTo("10.5.5.109") == 0) {
@@ -98,8 +103,7 @@ MediaPlayer.OnVideoSizeChangedListener, SurfaceHolder.Callback {
             Message msg = Message.obtain();
             msg.what = 1001;
             _handler.sendMessage(msg);
-        }
-        else
+        } else
             this.scanWifi(c);
     }
 
@@ -108,26 +112,23 @@ MediaPlayer.OnVideoSizeChangedListener, SurfaceHolder.Callback {
             Log.d(TAG, "Selected " + selected + " " + mWifis.get(selected));
             this.connectToNetwork(mWifiScanList.get(selected));
             dialog.dismiss();
-        }
-        else if (dialog == mWifiPasswordDlg) {
+        } else if (dialog == mWifiPasswordDlg) {
             EditText password_input = (EditText) mWifiPasswordDlg.findViewById(R.id.password);
             if (mSelected.capabilities.contains("WPA")) {
                 //WPA
                 String sSecurityKey = password_input.getEditableText().toString();
-                Log.d(TAG, "WPA Password given "+sSecurityKey);
+                Log.d(TAG, "WPA Password given " + sSecurityKey);
                 mWifiConfig.allowedGroupCiphers.set(WifiConfiguration.GroupCipher.CCMP);
                 mWifiConfig.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.WPA_PSK);
                 mWifiConfig.allowedPairwiseCiphers.set(WifiConfiguration.PairwiseCipher.CCMP);
                 mWifiConfig.allowedProtocols.set(WifiConfiguration.Protocol.RSN);
-                mWifiConfig.preSharedKey = "\""+sSecurityKey+"\"";
-            }
-            else if (mSelected.capabilities.contains("WEP")) {
+                mWifiConfig.preSharedKey = "\"" + sSecurityKey + "\"";
+            } else if (mSelected.capabilities.contains("WEP")) {
                 String sSecurityKey = password_input.getEditableText().toString();
-                Log.d(TAG, "WEP Password given "+sSecurityKey);
+                Log.d(TAG, "WEP Password given " + sSecurityKey);
                 mWifiConfig.wepKeys[0] = sSecurityKey;
                 mWifiConfig.wepTxKeyIndex = 0;
-            }
-            else {
+            } else {
                 Log.e(TAG, "Unsupported wifi security");
             }
             //mWifiConfig.
@@ -136,15 +137,13 @@ MediaPlayer.OnVideoSizeChangedListener, SurfaceHolder.Callback {
             int netId = mWifiManager.addNetwork(mWifiConfig);
             if (netId < 0) {
                 Log.e(TAG, "Adding network failed! " + mWifiConfig.SSID);
-            }
-            else {
+            } else {
                 //mWifiManager.disconnect();
                 Log.d(TAG, "Connecting to " + netId);
                 mWifiManager.enableNetwork(netId, true);
             }
-        }
-        else {
-            Log.e(TAG, "Unknown dialog "+dialog);
+        } else {
+            Log.e(TAG, "Unknown dialog " + dialog);
             dialog.dismiss();
         }
     }
@@ -157,15 +156,13 @@ MediaPlayer.OnVideoSizeChangedListener, SurfaceHolder.Callback {
                 if (v.isSelected()) {
                     v.setSelected(false);
                     //mPlayer.pause();
-                }
-                else {
+                } else {
                     v.setSelected(true);
                     //mPlayer.play();
                 }
             }
 
-        }
-        catch (Throwable t) {
+        } catch (Throwable t) {
             Log.e(TAG, t.toString());
         }
     }
@@ -178,9 +175,19 @@ MediaPlayer.OnVideoSizeChangedListener, SurfaceHolder.Callback {
         mWifiManager.startScan();
     }
 
-    public boolean connectToNetwork(ScanResult selected){
+    public boolean connectToNetwork(ScanResult selected) {
         Log.i(TAG, "Connecting to network " + selected);
-        List <WifiConfiguration> listConfig = mWifiManager.getConfiguredNetworks();
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            // TODO: Consider calling
+            //    ActivityCompat#requestPermissions
+            // here to request the missing permissions, and then overriding
+            //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
+            //                                          int[] grantResults)
+            // to handle the case where the user grants the permission. See the documentation
+            // for ActivityCompat#requestPermissions for more details.
+            return false;
+        }
+        List<WifiConfiguration> listConfig = mWifiManager.getConfiguredNetworks();
 
         for (int i = 0; i<listConfig.size(); i++){
             mWifiConfig = listConfig.get(i);

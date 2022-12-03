@@ -18,11 +18,11 @@
         android:text="@string/action_record" />
 
     <ListView
+        android:id="@+id/listView"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:id="@+id/listView"
-        android:layout_alignParentStart="true"
-        android:layout_below="@+id/record_button" />
+        android:layout_below="@+id/record_button"
+        android:layout_alignParentStart="true" />
 
 
 </RelativeLayout>
