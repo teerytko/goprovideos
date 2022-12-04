@@ -10,6 +10,9 @@ import android.app.AlertDialog;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.database.Cursor;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.media.ThumbnailUtils;
 import android.net.Uri;
 import android.os.Bundle;
 import android.provider.MediaStore;
@@ -22,6 +25,7 @@ import android.view.View;
 import android.widget.AdapterView;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.ImageView;
 import android.widget.ListView;
 import android.widget.Toast;
 import androidx.fragment.app.FragmentActivity;
@@ -50,6 +54,7 @@ public class VideoListActivity extends FragmentActivity implements View.OnClickL
     public Loader<Cursor> onCreateLoader(int i, Bundle bundle) {
         Log.i(TAG, "onCreateLoader");
         String[] projection = {MediaStore.Video.Media._ID,
+                               MediaStore.Video.Media.TITLE,
                                MediaStore.Video.Media.DISPLAY_NAME,
                                MediaStore.Video.Media.DATE_ADDED,
                                MediaStore.Video.Media.DATA};
@@ -68,7 +73,7 @@ public class VideoListActivity extends FragmentActivity implements View.OnClickL
             int index = 0;
             do {
                 Log.i(TAG, cursor.getString(0) + " " + cursor.getString(1)+" " + cursor.getString(3));
-                mPaths.add(index++, cursor.getString(3));
+                mPaths.add(index++, cursor.getString(4));
             } while(cursor.moveToNext());
             cursor.moveToFirst();
         }
@@ -92,14 +97,18 @@ public class VideoListActivity extends FragmentActivity implements View.OnClickL
         mListView = (ListView) findViewById(com.intel.tsrytkon.goprovideos.R.id.listView);
         Log.i(TAG, "Create main view!!");
         // For the cursor adapter, specify which columns go into which views
-        String[] fromColumns = {MediaStore.Video.Media.DISPLAY_NAME,
-                                MediaStore.Video.Media.DATE_ADDED};
-        int[] toViews = {android.R.id.text1, android.R.id.text2}; // The TextView in simple_list_item_2
-
+        String[] fromColumns = {
+                MediaStore.Video.Media.TITLE,
+                MediaStore.Video.Media.DATE_ADDED,
+                MediaStore.Video.Media._ID,
+        };
+        int[] toViews = {R.id.Name, R.id.Date, R.id.Thumbnail};
         // Create an empty adapter we will use to display the loaded data.
         // We pass null for the cursor, then update it in onLoadFinished()
         mAdapter = new SimpleCursorAdapter(this,
-                android.R.layout.simple_list_item_2, null,
+                //android.R.layout.simple_list_item_2,
+                R.layout.listviewrow,
+                null,
                 fromColumns, toViews, 0);
 
         mListView.setAdapter(mAdapter);
@@ -114,8 +123,26 @@ public class VideoListActivity extends FragmentActivity implements View.OnClickL
                 startActivity(intent);
             }
         });
+        mAdapter.setViewBinder(new SimpleCursorAdapter.ViewBinder() {
+            public boolean setViewValue(View view, Cursor cursor, int columnIndex) {
+                if (view.getId() == R.id.Thumbnail) {
+                    setThumbnailIconFromCursor((ImageView) view, cursor);
+                    return true;
+                }
+
+                return false;
+            }
+        });
         getSupportLoaderManager().initLoader(1, null, this);
         registerForContextMenu(mListView);
+    }
+
+    private void setThumbnailIconFromCursor(ImageView view, Cursor cursor) {
+        int filePathColumnIndex = cursor.getColumnIndex(MediaStore.Video.Media.DATA);
+        String video_path = cursor.getString(filePathColumnIndex);
+        Bitmap thumb = ThumbnailUtils.createVideoThumbnail(video_path,
+                MediaStore.Images.Thumbnails.MINI_KIND);
+        view.setImageBitmap(thumb);
     }
 
     @Override
@@ -239,5 +266,41 @@ public class VideoListActivity extends FragmentActivity implements View.OnClickL
         }
     }
 
+    private Bitmap getThumbnail(int id){
+        final String thumb_DATA = MediaStore.Images.Thumbnails.DATA;
+        final String thumb_IMAGE_ID = MediaStore.Images.Thumbnails.IMAGE_ID;
+        final Uri sourceUri = MediaStore.Images.Media.EXTERNAL_CONTENT_URI;
+        final Uri thumbUri = MediaStore.Images.Thumbnails.EXTERNAL_CONTENT_URI;
+        String[] thumbColumns = {thumb_DATA, thumb_IMAGE_ID};
+
+        CursorLoader thumbCursorLoader = new CursorLoader(
+                this,
+                thumbUri,
+                thumbColumns,
+                thumb_IMAGE_ID + "=" + id,
+                null,
+                null);
+
+        Cursor thumbCursor = thumbCursorLoader.loadInBackground();
+
+        Bitmap thumbBitmap = null;
+        if(thumbCursor.moveToFirst()){
+            int thCulumnIndex = thumbCursor.getColumnIndex(thumb_DATA);
+
+            String thumbPath = thumbCursor.getString(thCulumnIndex);
+
+            Toast.makeText(getApplicationContext(),
+                    thumbPath,
+                    Toast.LENGTH_LONG).show();
+
+            thumbBitmap = BitmapFactory.decodeFile(thumbPath);
+        }else{
+            Toast.makeText(getApplicationContext(),
+                    "NO Thumbnail!",
+                    Toast.LENGTH_LONG).show();
+        }
+
+        return thumbBitmap;
+    }
 
 }
