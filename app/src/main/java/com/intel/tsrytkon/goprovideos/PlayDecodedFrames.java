@@ -18,13 +18,19 @@
 package com.intel.tsrytkon.goprovideos;
 
 import android.graphics.SurfaceTexture;
+import android.media.AudioAttributes;
+import android.media.AudioFormat;
+import android.media.AudioTrack;
 import android.media.MediaCodec;
 import android.media.MediaExtractor;
 import android.media.MediaFormat;
 import android.media.MediaMetadataRetriever;
+import android.os.Build;
 import android.os.Environment;
 import android.util.Log;
 import android.view.Surface;
+
+import androidx.annotation.RequiresApi;
 
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -37,17 +43,19 @@ import java.util.concurrent.Semaphore;
  */
 public class PlayDecodedFrames {
     private static final String TAG = "PlayDecodedFrames";
-    private static final boolean VERBOSE = true;           // lots of logging
+    private static final boolean VERBOSE = false;           // lots of logging
 
     // where to find files (note: requires WRITE_EXTERNAL_STORAGE permission)
     private static final File FILES_DIR = Environment.getExternalStorageDirectory();
     private static final int MAX_FRAMES = 10;       // stop extracting after this many
     private PlayDecodedFramesThread mWorkerThread;
     private String mInputFile = "N/A";
-    private MediaCodec decoder = null;
     private MediaExtractor extractor = null;
+    private MediaCodec decoder = null;
+    private MediaCodec decoderA = null;
     private long duration = 0;
     private int trackIndex;
+    private int trackIndexA;
     boolean outputDone = false;
     boolean inputDone = false;
     long mSeeking = -1;
@@ -56,9 +64,12 @@ public class PlayDecodedFrames {
     long mPrevFrame[] = {0, 0};
     private Surface mSurface = null;
     private MediaFormat mFormat;
+    private MediaFormat mFormatA;
     private SurfaceTexture mSurfaceTexture = null;
     private PlayDecodedFramesCallback mCb = null;
-
+    private static String MEDIA_TRACK_VIDEO = "video/";
+    private static String MEDIA_TRACK_AUDIO = "audio/";
+    AudioTrack mPlayer;
 
     public PlayDecodedFrames(String inputFile, Surface surface, PlayDecodedFramesCallback cb) {
         mInputFile = inputFile;
@@ -161,13 +172,13 @@ public class PlayDecodedFrames {
      *
      * @return the track index, or -1 if no video track is found.
      */
-    private int selectTrack(MediaExtractor extractor) {
+    private int getTrackIndex(MediaExtractor extractor, String trackType) {
         // Select the first video track we find, ignore the rest.
         int numTracks = extractor.getTrackCount();
         for (int i = 0; i < numTracks; i++) {
             MediaFormat format = extractor.getTrackFormat(i);
             String mime = format.getString(MediaFormat.KEY_MIME);
-            if (mime.startsWith("video/")) {
+            if (mime.startsWith(trackType)) {
                 if (VERBOSE) {
                     Log.d(TAG, "Extractor selected tracks " + i + " (" + mime + "): " + format);
                 }
@@ -190,13 +201,16 @@ public class PlayDecodedFrames {
             }
             extractor = new MediaExtractor();
             extractor.setDataSource(inputFile.toString());
-            trackIndex = selectTrack(extractor);
+            trackIndex = getTrackIndex(extractor, MEDIA_TRACK_VIDEO);
             if (trackIndex < 0) {
                 throw new RuntimeException("No video track found in " + inputFile);
             }
             extractor.selectTrack(trackIndex);
             mFormat = extractor.getTrackFormat(trackIndex);
             duration = mFormat.getLong(MediaFormat.KEY_DURATION);
+            trackIndexA = getTrackIndex(extractor, MEDIA_TRACK_AUDIO);
+            extractor.selectTrack(trackIndexA);
+            mFormatA = extractor.getTrackFormat(trackIndexA);
 
             mCb.setMaxProgress((int)duration);
             Log.d(TAG, "Video size is " + mFormat.getInteger(MediaFormat.KEY_WIDTH) + "x" +
@@ -217,7 +231,27 @@ public class PlayDecodedFrames {
             decoder = MediaCodec.createDecoderByType(mime);
             decoder.configure(mFormat, mSurface, null, 0);
             decoder.start();
-            mDecoderInputBuffers = decoder.getInputBuffers();
+
+            mime = mFormatA.getString(MediaFormat.KEY_MIME);
+            decoderA = MediaCodec.createDecoderByType(mime);
+            decoderA.configure(mFormatA, null, null, 0);
+            MediaFormat oFormatA = decoderA.getOutputFormat();
+            decoderA.start();
+            int samplerate = oFormatA.getInteger(MediaFormat.KEY_SAMPLE_RATE);
+
+            mPlayer = new AudioTrack.Builder()
+                    .setAudioAttributes(new AudioAttributes.Builder()
+                            .setUsage(AudioAttributes.USAGE_MEDIA)
+                            .setContentType(AudioAttributes.CONTENT_TYPE_UNKNOWN)
+                            .build())
+                    .setAudioFormat(new AudioFormat.Builder()
+                            .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                            .setSampleRate(samplerate)
+                            .setChannelMask(AudioFormat.CHANNEL_OUT_STEREO)
+                            .build())
+                    //.setBufferSizeInBytes(1024)
+                    .build();
+            mPlayer.play();
 
         } catch (Exception e) {
             e.printStackTrace();
@@ -241,9 +275,15 @@ public class PlayDecodedFrames {
                 if (VERBOSE) Log.d(TAG, "loop mSeeking="+mSeeking);
                 // Feed more data to the decoder.
                 if (!inputDone) {
+                    if (extractor.getSampleTrackIndex() != trackIndex) {
+                        Log.w(TAG, "WEIRD: got sample from track " +
+                                extractor.getSampleTrackIndex() + ", expected " + trackIndex);
+                        return ;
+                    }
+
                     int inputBufIndex = decoder.dequeueInputBuffer(TIMEOUT_USEC);
                     if (inputBufIndex >= 0) {
-                        ByteBuffer inputBuf = mDecoderInputBuffers[inputBufIndex];
+                        ByteBuffer inputBuf = decoder.getInputBuffer(inputBufIndex);
                         // Read the sample data into the ByteBuffer.  This neither respects nor
                         // updates inputBuf's position, limit, etc.
                         int chunkSize = extractor.readSampleData(inputBuf, 0);
@@ -257,6 +297,9 @@ public class PlayDecodedFrames {
                             if (extractor.getSampleTrackIndex() != trackIndex) {
                                 Log.w(TAG, "WEIRD: got sample from track " +
                                         extractor.getSampleTrackIndex() + ", expected " + trackIndex);
+                                decoder.queueInputBuffer(inputBufIndex, 0, 0, 0L,
+                                        MediaCodec.BUFFER_FLAG_PARTIAL_FRAME);
+                                return ;
                             }
                             long presentationTimeUs = extractor.getSampleTime();
                             decoder.queueInputBuffer(inputBufIndex, 0, chunkSize,
@@ -314,6 +357,88 @@ public class PlayDecodedFrames {
             }
         } while (mSeeking > 0);
    }
+    /**
+     * Work loop.
+     */
+    void doExtractA(MediaExtractor extractor,
+                   int trackIndex,
+                   MediaCodec decoder,
+                   MediaCodec.BufferInfo info
+    ) throws IOException {
+        final int TIMEOUT_USEC = 10000;
+        int inputChunk = 0;
+        int decodeCount = 0;
+        do {
+            synchronized (this) {
+                if (VERBOSE) Log.d(TAG, "loop mSeeking="+mSeeking);
+                // Feed more data to the decoder.
+                if (!inputDone) {
+                    if (extractor.getSampleTrackIndex() != trackIndex) {
+                        Log.w(TAG, "WEIRD: got sample from track " +
+                                extractor.getSampleTrackIndex() + ", expected " + trackIndex);
+                        return ;
+                    }
+                    int inputBufIndex = decoder.dequeueInputBuffer(TIMEOUT_USEC);
+                    if (inputBufIndex >= 0) {
+                        ByteBuffer inputBuf = decoder.getInputBuffer(inputBufIndex);
+                        // Read the sample data into the ByteBuffer.  This neither respects nor
+                        // updates inputBuf's position, limit, etc.
+                        int chunkSize = extractor.readSampleData(inputBuf, 0);
+                        if (chunkSize < 0) {
+                            // End of stream -- send empty frame with EOS flag set.
+                            decoder.queueInputBuffer(inputBufIndex, 0, 0, 0L,
+                                    MediaCodec.BUFFER_FLAG_END_OF_STREAM);
+                            inputDone = true;
+                            if (VERBOSE) Log.d(TAG, "sent input EOS");
+                        } else {
+                            if (extractor.getSampleTrackIndex() != trackIndex) {
+                                Log.w(TAG, "WEIRD: got sample from track " +
+                                        extractor.getSampleTrackIndex() + ", expected " + trackIndex);
+                                decoder.queueInputBuffer(inputBufIndex, 0, 0, 0L,
+                                        MediaCodec.BUFFER_FLAG_PARTIAL_FRAME);
+                                return ;
+                            }
+                            long presentationTimeUs = extractor.getSampleTime();
+                            decoder.queueInputBuffer(inputBufIndex, 0, chunkSize,
+                                    presentationTimeUs, 0 /*flags*/);
+                            if (VERBOSE) {
+                                Log.d(TAG, "submitted frame " + inputChunk + " to dec, size=" +
+                                        chunkSize + " sampleTime: " + presentationTimeUs);
+                            }
+                            inputChunk++;
+                            extractor.advance();
+                        }
+                    } else {
+                        if (VERBOSE) Log.d(TAG, "input buffer not available");
+                    }
+                }
+                if (!outputDone) {
+                    int decoderStatus = decoder.dequeueOutputBuffer(info, TIMEOUT_USEC);
+                    if (decoderStatus == MediaCodec.INFO_TRY_AGAIN_LATER) {
+                        // no output available yet
+                        if (VERBOSE) Log.i(TAG, "no output from decoder available");
+                    } else if (decoderStatus == MediaCodec.INFO_OUTPUT_BUFFERS_CHANGED) {
+                        // not important for us, since we're using Surface
+                        if (VERBOSE) Log.i(TAG, "decoder output buffers changed");
+                    } else if (decoderStatus == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
+                        MediaFormat newFormat = decoder.getOutputFormat();
+                        if (VERBOSE) Log.i(TAG, "decoder output format changed: " + newFormat);
+                    } else if (decoderStatus < 0) {
+                        Log.e(TAG, "unexpected result from decoder.dequeueOutputBuffer: " + decoderStatus);
+                    } else { // decoderStatus >= 0
+                        ByteBuffer outputBuf = decoder.getOutputBuffer(decoderStatus);
+                        if (VERBOSE) Log.i(TAG, "audio decoder given buffer " + decoderStatus +
+                                " (time=" + info.presentationTimeUs + ")");
+                        boolean doRender = (info.size != 0);
+
+                        int ret = mPlayer.write(outputBuf, info.size, AudioTrack.WRITE_BLOCKING);
+                        decoder.releaseOutputBuffer(decoderStatus, false);
+                    }
+                }
+            }
+        } while (mSeeking > 0);
+    }
+
     /**
      */
     private static class PlayDecodedFramesThread implements Runnable {
@@ -393,6 +518,7 @@ public class PlayDecodedFrames {
             try {
                 mDecoder.initializeDecoder();
                 MediaCodec.BufferInfo info = new MediaCodec.BufferInfo();
+                MediaCodec.BufferInfo infoA = new MediaCodec.BufferInfo();
                 long frameSaveTime = 0;
                 long prevTime = 0;
 
@@ -404,6 +530,12 @@ public class PlayDecodedFrames {
                             mDecoder.trackIndex,
                             mDecoder.decoder,
                             info);
+                    // decode audio frame
+                    mDecoder.doExtractA(mDecoder.extractor,
+                            mDecoder.trackIndexA,
+                            mDecoder.decoderA,
+                            infoA);
+
                     if (VERBOSE) Log.i(TAG, "Main loop - frame done");
                     sleepTime = (info.presentationTimeUs - prevTime) / 1000;
                     if (VERBOSE) Log.i(TAG, "sleepTime: " + sleepTime);
