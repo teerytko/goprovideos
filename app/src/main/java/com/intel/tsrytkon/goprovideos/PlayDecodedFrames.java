@@ -146,7 +146,7 @@ public class PlayDecodedFrames {
     public int getVideoHeight() {
         return mFormat.getInteger(MediaFormat.KEY_HEIGHT);
     }
-    public int getVideoRotation() {
+    public int getVideoRotation() throws IOException {
         Log.d(TAG, "getVideoRotation");
         MediaMetadataRetriever reader = new MediaMetadataRetriever();
         reader.setDataSource(mInputFile);

@@ -22,6 +22,8 @@ import android.widget.Button;
 import android.widget.ImageButton;
 import android.widget.ProgressBar;
 
+import java.io.IOException;
+
 public class FramePlayerVideoActivity extends Activity implements
         SurfaceHolder.Callback, View.OnClickListener, View.OnTouchListener,
         TextureView.SurfaceTextureListener, PlayDecodedFramesCallback {
@@ -94,7 +96,11 @@ public class FramePlayerVideoActivity extends Activity implements
         // send a video stream to the TextureView before it has initialized, so we disable
         // the "play" button until this callback fires.
         Log.d(TAG, "SurfaceTexture ready (" + width + "x" + height + ")");
-        playVideo(extras.getString(MEDIA));
+        try {
+            playVideo(extras.getString(MEDIA));
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     @Override
@@ -172,7 +178,7 @@ public class FramePlayerVideoActivity extends Activity implements
         return false;
     }
 
-    private void playVideo(String path) {
+    private void playVideo(String path) throws IOException {
         doCleanUp();
         Log.i(TAG, "playVideo: " + path);
         mCurPath = path;
@@ -261,7 +267,11 @@ public class FramePlayerVideoActivity extends Activity implements
         Display display = ((WindowManager) this.getSystemService(Context.WINDOW_SERVICE)).getDefaultDisplay();
         int rotation = display.getRotation();
         Log.d(TAG, "surfaceCreated called "+rotation);
-        playVideo(extras.getString(MEDIA));
+        try {
+            playVideo(extras.getString(MEDIA));
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     @Override
